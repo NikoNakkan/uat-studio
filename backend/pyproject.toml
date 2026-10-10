@@ -1,0 +1,19 @@
+[project]
+name = "uat-studio"
+version = "0.1.0"
+description = "UAT Studio: UAT runs from an Excel file with AI agents and Playwright"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "I"]
+ignore = [
+  "E731",   # small lambdas used as local helpers
+  "B008",   # FastAPI's File(...) / Form(...) defaults
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

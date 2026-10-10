@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* Layout: a working instrument panel. Left rail for places, a wide working area, state shown as pills. */
+:root {
+  --bg: #f2f4f3;
+  --surface: #ffffff;
+  --surface-2: #eaeeec;
+  --ink: #16201d;
+  --muted: #5a6763;
+  --line: #d5dcd9;
+  --accent: #0f6b5f;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefeb;
+  --good: #1d7a4b;
+  --warn: #9a5800;
+  --bad: #b42318;
+  --info: #2f5fb3;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1211; --surface: #141b19; --surface-2: #1b2421; --ink: #e2eae7; --muted: #94a29d; --line: #29342f;
+    --accent: #3fb4a3; --accent-ink: #052019; --accent-soft: #163631; --good: #4cc28a; --warn: #e3a14f; --bad: #f07a6b; --info: #7ea6f2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1211; --surface: #141b19; --surface-2: #1b2421; --ink: #e2eae7; --muted: #94a29d; --line: #29342f;
+  --accent: #3fb4a3; --accent-ink: #052019; --accent-soft: #163631; --good: #4cc28a; --warn: #e3a14f; --bad: #f07a6b; --info: #7ea6f2;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 14px; }
+h1, h2, h3 { text-wrap: balance; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tnum { font-variant-numeric: tabular-nums; }
+pre { white-space: pre-wrap; word-break: break-word; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

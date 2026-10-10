@@ -1,0 +1,10 @@
+fastapi>=0.143
+uvicorn[standard]>=0.54
+anthropic>=1.13
+mcp>=2.3
+python-multipart>=0.0.32
+pydantic>=2.14
+# the kit's own scripts run with this same Python:
+-r ../../agentic-testing-kit/requirements.txt
+# tests
+httpx>=0.28
