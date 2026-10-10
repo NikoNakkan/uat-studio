@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, kitFile } from '../api';
-import { Card, Empty, Pill, errorText } from '../ui';
+import { Card, Empty, Loading, Notice, Pill, errorText } from '../ui';
 
 type StepShot = {
   name: string; test_id: string; step: number; status: 'changed' | 'unchanged' | 'new'; old: string; new: string;
@@ -24,8 +24,9 @@ export function VisualRegression({ runId, focus }: { runId: string; focus?: stri
     return onlyChanged ? picked.filter(t => t.counts.changed > 0) : picked;
   }, [q.data, onlyChanged, focus]);
 
-  if (q.isError) return <Empty>{errorText(q.error)}</Empty>;
-  if (!q.data) return <Empty>Loading…</Empty>;
+  if (q.isPending) return <Loading label="Loading visual regression…" />;
+  if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
+  if (!q.data) return <Loading label="Loading visual regression…" />;
   const v = q.data;
   if (!v.tests.length) return <Empty>Screens are compared after the run, in the screens stage.</Empty>;
   const changed = v.tests.reduce((n, t) => n + t.counts.changed, 0);
@@ -106,9 +107,17 @@ function StepCompare({ s, mode }: { s: StepShot; mode: Mode }) {
 }
 
 function Shot({ src, caption }: { src: string; caption: string }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   return (
     <figure className="grid gap-1 min-w-0">
-      <a href={kitFile(src)} target="_blank" rel="noreferrer"><img src={kitFile(src)} alt={caption} loading="lazy" className="w-full rounded border border-line" /></a>
+      <a href={kitFile(src)} target="_blank" rel="noreferrer" className="relative block">
+        {state === 'loading' && <div className="h-40 animate-pulse rounded bg-surface-2" role="status" aria-label={`Loading ${caption}`} />}
+        {state === 'error' && <p className="rounded border border-line p-3 text-xs text-muted">This screen could not be loaded.</p>}
+        <img src={kitFile(src)} alt={caption} loading="lazy"
+          ref={img => { if (img?.complete) setState(img.naturalWidth > 0 ? 'ready' : 'error'); }}
+          onLoad={() => setState('ready')} onError={() => setState('error')}
+          className={`w-full rounded border border-line ${state === 'ready' ? '' : 'absolute h-px w-px opacity-0'}`} />
+      </a>
       <figcaption className="text-xs text-muted">{caption}</figcaption>
     </figure>
   );
@@ -117,13 +126,20 @@ function Shot({ src, caption }: { src: string; caption: string }) {
 /** Drag across one picture: the last signed-off screen on the left, this run on the right. */
 function Slider({ before, after }: { before: string; after: string }) {
   const [pos, setPos] = useState(50);
+  const [afterOn, setAfterOn] = useState(false);
+  const [beforeOn, setBeforeOn] = useState(false);
+  const ready = afterOn && beforeOn;
+  const note = (img: HTMLImageElement | null, set: (on: boolean) => void) => { if (img?.complete) set(true); };
   return (
     <div className="grid gap-1.5">
       <div className="relative overflow-hidden rounded border border-line select-none">
-        <img src={kitFile(after)} alt="This run" className="block w-full" />
-        <img src={kitFile(before)} alt="Last signed-off" className="absolute inset-0 block w-full"
+        {!ready && <div className="h-40 animate-pulse bg-surface-2" role="status" aria-label="Loading screens" />}
+        <img src={kitFile(after)} alt="This run" ref={img => note(img, setAfterOn)} onLoad={() => setAfterOn(true)} onError={() => setAfterOn(true)}
+          className={`block w-full ${ready ? '' : 'absolute h-px w-px opacity-0'}`} />
+        <img src={kitFile(before)} alt="Last signed-off" ref={img => note(img, setBeforeOn)} onLoad={() => setBeforeOn(true)} onError={() => setBeforeOn(true)}
+          className={`absolute inset-0 block w-full ${ready ? '' : 'h-px w-px opacity-0'}`}
           style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
-        <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-accent" style={{ left: `${pos}%` }} />
+        {ready && <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-accent" style={{ left: `${pos}%` }} />}
       </div>
       <input type="range" min={0} max={100} value={pos} onChange={e => setPos(Number(e.target.value))} aria-label="Move between last signed-off and this run" />
       <div className="flex justify-between text-xs text-muted"><span>← Last signed-off</span><span>This run →</span></div>

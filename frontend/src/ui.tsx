@@ -2,9 +2,49 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Event } from './api';
 
-export function Button({ children, onClick, kind = 'default', disabled, type = 'button', title }: {
+export type LiveStatus = 'connecting' | 'live' | 'reconnecting';
+
+export function Spinner({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return <span className={`inline-block shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent ${className}`} aria-hidden />;
+}
+
+export function Loading({ label = 'Loading…' }: { label?: string }) {
+  return (
+    <p role="status" className="flex items-center gap-2 text-sm text-muted">
+      <Spinner />
+      {label}
+    </p>
+  );
+}
+
+export function Notice({ tone = 'bad', children }: { tone?: 'bad' | 'good' | 'muted'; children: ReactNode }) {
+  return (
+    <p role={tone === 'bad' ? 'alert' : 'status'} className={`text-sm ${tone === 'bad' ? 'text-bad' : tone === 'good' ? 'text-good' : 'text-muted'}`}>
+      {children}
+    </p>
+  );
+}
+
+/** Initial load and hard failures. A background refetch keeps the children on screen. */
+export function QueryGate({ pending, error, label = 'Loading…', children }: {
+  pending: boolean; error?: unknown; label?: string; children: ReactNode;
+}) {
+  if (pending) return <Loading label={label} />;
+  if (error != null) return <Notice>{errorText(error)}</Notice>;
+  return <>{children}</>;
+}
+
+export function useTitle(title: string) {
+  useEffect(() => {
+    const previous = document.title;
+    document.title = `${title} · UAT Studio`;
+    return () => { document.title = previous; };
+  }, [title]);
+}
+
+export function Button({ children, onClick, kind = 'default', disabled, busy = false, type = 'button', title }: {
   children: ReactNode; onClick?: () => void; kind?: 'default' | 'primary' | 'danger' | 'ghost'; disabled?: boolean;
-  type?: 'button' | 'submit'; title?: string;
+  busy?: boolean; type?: 'button' | 'submit'; title?: string;
 }) {
   const styles = {
     default: 'border border-line bg-surface hover:bg-surface-2 text-ink',
@@ -13,8 +53,9 @@ export function Button({ children, onClick, kind = 'default', disabled, type = '
     ghost: 'text-accent hover:bg-accent-soft',
   }[kind];
   return (
-    <button type={type} title={title} onClick={onClick} disabled={disabled}
+    <button type={type} title={title} onClick={onClick} disabled={disabled || busy} aria-busy={busy || undefined}
       className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${styles}`}>
+      {busy ? <Spinner /> : null}
       {children}
     </button>
   );
@@ -32,8 +73,11 @@ const PILL: Record<string, string> = {
   core: 'bg-surface-2 text-ink', planned: 'bg-surface-2 text-muted', 'set-aside': 'bg-surface-2 text-muted',
 };
 
+const LIVE_PILL = new Set(['running', 'started']);
+
 export function Pill({ value, label }: { value: string; label?: string }) {
-  return <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap ${PILL[value] ?? 'bg-surface-2 text-muted'}`}>
+  return <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap ${PILL[value] ?? 'bg-surface-2 text-muted'}`}>
+    {LIVE_PILL.has(value) ? <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden /> : null}
     {label ?? (value === '-' ? 'not started' : value.replaceAll('_', ' '))}</span>;
 }
 
@@ -86,7 +130,7 @@ export function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead><tr className="border-b border-line text-left text-xs text-muted">{head.map((h, i) => <th key={i} className="px-2 py-1.5 font-medium">{h}</th>)}</tr></thead>
-        <tbody>{rows.map((r, i) => <tr key={i} className="border-b border-line/60 align-top">{r.map((c, j) => <td key={j} className="px-2 py-1.5">{c}</td>)}</tr>)}</tbody>
+        <tbody>{rows.map((r, i) => <tr key={i} className="border-b border-line/60 align-top hover:bg-surface-2/50">{r.map((c, j) => <td key={j} className="px-2 py-1.5">{c}</td>)}</tr>)}</tbody>
       </table>
     </div>
   );
@@ -95,13 +139,18 @@ export function Table({ head, rows }: { head: ReactNode[]; rows: ReactNode[][] }
 /** Live events of a run (or the app channel) over Server-Sent Events. Refreshes the given queries on milestones. */
 export function useEvents(channelUrl: string | null, refresh: unknown[][] = []) {
   const [events, setEvents] = useState<Event[]>([]);
+  const [live, setLive] = useState<LiveStatus>('connecting');
   const qc = useQueryClient();
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   useEffect(() => {
     if (!channelUrl) return;
     setEvents([]);
+    setLive('connecting');
+    let dead = false;
     const es = new EventSource(channelUrl);
+    es.onopen = () => { if (!dead) setLive('live'); };
+    es.onerror = () => { if (!dead) setLive('reconnecting'); };
     es.onmessage = msg => {
       const e = JSON.parse(msg.data) as Event;
       setEvents(prev => (prev.length > 3000 ? [...prev.slice(-2500), e] : [...prev, e]));
@@ -109,9 +158,9 @@ export function useEvents(channelUrl: string | null, refresh: unknown[][] = []) 
         for (const key of refreshRef.current) qc.invalidateQueries({ queryKey: key });
       }
     };
-    return () => es.close();
+    return () => { dead = true; es.close(); };
   }, [channelUrl, qc]);
-  return events;
+  return { events, live };
 }
 
 export function errorText(e: unknown) {

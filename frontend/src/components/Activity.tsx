@@ -1,29 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Event } from '../api';
-import { Pill } from '../ui';
+import { Pill, type LiveStatus } from '../ui';
 
 /** Everything the run did, in order: stages, script output, agent messages and tool calls. */
-export function Activity({ events, stage }: { events: Event[]; stage?: string }) {
+export function Activity({ events, stage, live = 'live' }: { events: Event[]; stage?: string; live?: LiveStatus }) {
   const [follow, setFollow] = useState(true);
   const [showTools, setShowTools] = useState(true);
-  const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const shown = useMemo(() => {
     let list = stage ? events.filter(e => e.stage === stage || e.type === 'run') : events;
     if (!showTools) list = list.filter(e => !['tool_call', 'tool_result', 'script_line'].includes(e.type));
     return list.slice(-1500);
   }, [events, stage, showTools]);
-  useEffect(() => { if (follow) end.current?.scrollIntoView({ block: 'end' }); }, [shown.length, follow]);
+  useEffect(() => {
+    if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
+  }, [shown.length, follow]);
+  const liveLabel = live === 'live' ? 'Live' : live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…';
+  const waiting = live === 'reconnecting' ? 'Reconnecting to live activity…' : 'Connecting to live activity…';
   return (
     <div className="grid gap-2">
-      <div className="flex flex-wrap gap-4 text-xs text-muted">
+      <div className="flex flex-wrap items-center gap-4 text-xs text-muted">
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> Follow</label>
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={showTools} onChange={e => setShowTools(e.target.checked)} /> Tool calls and script lines</label>
         <span className="tnum">{shown.length} events{stage ? ` in ${stage}` : ''}</span>
+        <span className="flex items-center gap-1.5" role="status">
+          <span className={`h-1.5 w-1.5 rounded-full ${live === 'live' ? 'bg-good' : 'animate-pulse bg-warn'}`} />
+          {liveLabel}
+        </span>
       </div>
-      <div className="max-h-[60vh] overflow-y-auto rounded-md border border-line bg-surface-2/50 p-2 font-mono text-xs leading-relaxed">
-        {shown.length === 0 && <p className="p-2 text-muted">Nothing yet. Start the run to see its activity here.</p>}
+      <div ref={box} onWheel={e => { if (e.deltaY < 0) setFollow(false); }}
+        className="max-h-[60vh] overflow-y-auto rounded-md border border-line bg-surface-2/50 p-2 font-mono text-xs leading-relaxed">
+        {shown.length === 0 && (
+          <p className="p-2 font-sans text-sm text-muted" role="status">
+            {live === 'live' ? 'Nothing yet. Start the run to see its activity here.' : waiting}
+          </p>
+        )}
         {shown.map(e => <Line key={e.seq} e={e} />)}
-        <div ref={end} />
       </div>
     </div>
   );

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Interaction } from '../api';
 import { Activity } from '../components/Activity';
 import { NeedsYou } from '../components/NeedsYou';
-import { Button, Card, Empty, Field, Pill, Pre, Table, errorText, inputCls, useEvents } from '../ui';
+import { Button, Card, Field, Loading, Notice, Pill, Pre, QueryGate, Table, errorText, inputCls, useEvents, useTitle } from '../ui';
 
 function fixFor(fix: string): string | null {
   if (fix.includes('init-agents')) return 'init-agents';
@@ -14,19 +14,23 @@ function fixFor(fix: string): string | null {
 }
 
 export function SetupPage() {
+  useTitle('Setup');
   const qc = useQueryClient();
   const check = useQuery({ queryKey: ['setup'], queryFn: () => api.get<any>('/api/setup') });
   const env = useQuery({ queryKey: ['env'], queryFn: () => api.get<any>('/api/env') });
   const appOpen = useQuery({ queryKey: ['interactions', 'app'], queryFn: () => api.get<Interaction[]>('/api/interactions?channel=app'), refetchInterval: 2500 });
-  const events = useEvents('/api/events/app', [['interactions', 'app']]);
+  const { events, live } = useEvents('/api/events/app', [['interactions', 'app']]);
   const [confirm, setConfirm] = useState<{ id: string; text: string } | null>(null);
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState<string | null>(null);
+  const lock = useRef(false);
 
-  const run = async (fn: () => Promise<any>) => {
-    setBusy(true); setError('');
-    try { const r = await fn(); if (r?.output) setOutput(r.output); qc.invalidateQueries(); } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
+  const run = async (label: string, fn: () => Promise<any>) => {
+    if (lock.current) return;
+    lock.current = true;
+    setJob(label); setError('');
+    try { const r = await fn(); if (r?.output) setOutput(r.output); qc.invalidateQueries(); } catch (e) { setError(errorText(e)); } finally { lock.current = false; setJob(null); }
   };
 
   return (
@@ -35,38 +39,44 @@ export function SetupPage() {
         <h1 className="text-xl font-semibold">Setup</h1>
         <p className="text-sm text-muted">Everything the flow needs on this machine, the app under test, its test accounts, and how the tests log in.</p>
       </div>
-      <NeedsYou items={appOpen.data ?? []} />
+      {appOpen.isPending ? <Loading label="Checking what needs you…" /> : appOpen.isError ? <Notice>{errorText(appOpen.error)}</Notice> : <NeedsYou items={appOpen.data ?? []} />}
 
-      <Card title="Requirements" actions={<Button onClick={() => qc.invalidateQueries({ queryKey: ['setup'] })}>Check again</Button>}>
-        {check.isLoading ? <Empty>Checking…</Empty> : (
+      <Card title="Requirements" actions={<Button busy={check.isFetching && !job} onClick={() => qc.invalidateQueries({ queryKey: ['setup'] })}>{check.isFetching && !job ? 'Checking…' : 'Check again'}</Button>}>
+        <QueryGate pending={check.isPending} error={check.isError ? check.error : null} label="Checking this machine…">
           <Table head={['', 'Requirement', 'Fix']} rows={(check.data?.rows ?? []).map((row: any) => {
             const id = fixFor(row.fix);
             return [<Pill value={row.status} />, row.item, id
-              ? <Button disabled={busy} onClick={() => setConfirm({ id, text: row.fix })}>Fix: {row.fix}</Button>
+              ? <Button disabled={!!job} onClick={() => setConfirm({ id, text: row.fix })}>Fix: {row.fix}</Button>
               : <span className="text-sm text-muted">{row.fix}</span>];
           })} />
-        )}
+        </QueryGate>
         {confirm && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-warn/60 p-3 text-sm">
             <span>This installs software on this machine: <code className="font-mono">{confirm.text}</code>. Run it now?</span>
-            <Button kind="primary" disabled={busy} onClick={() => { const c = confirm; setConfirm(null); run(() => api.post('/api/setup/fix', { id: c.id })); }}>Yes, run it</Button>
-            <Button onClick={() => setConfirm(null)}>Cancel</Button>
+            <Button kind="primary" busy={!!job} onClick={() => { const c = confirm; setConfirm(null); run(c.text, () => api.post('/api/setup/fix', { id: c.id })); }}>Yes, run it</Button>
+            <Button disabled={!!job} onClick={() => setConfirm(null)}>Cancel</Button>
           </div>
         )}
+        {job && job !== 'login setup' && job !== 'login check' && <div className="mt-3"><Loading label={`Running ${job}…`} /></div>}
       </Card>
 
-      <AppUnderTest env={env.data} onSaved={() => qc.invalidateQueries({ queryKey: ['env'] })} />
-      <Accounts env={env.data} onSaved={() => qc.invalidateQueries({ queryKey: ['env'] })} />
+      {env.isPending ? <Card title="App under test"><Loading label="Loading the app under test…" /></Card>
+        : env.isError ? <Card title="App under test"><Notice>{errorText(env.error)}</Notice></Card>
+        : <AppUnderTest env={env.data} onSaved={() => qc.invalidateQueries({ queryKey: ['env'] })} />}
+      {env.isPending ? <Card title="Test accounts"><Loading label="Loading test accounts…" /></Card>
+        : env.isError ? null
+        : <Accounts env={env.data} onSaved={() => qc.invalidateQueries({ queryKey: ['env'] })} />}
 
       <Card title="Login" actions={<>
-        <Button kind="primary" disabled={busy} onClick={() => run(() => api.post('/api/setup/login'))}>Set up login with AI</Button>
-        <Button disabled={busy} onClick={() => run(() => api.post('/api/setup/check-login'))}>Check every account logs in</Button>
+        <Button kind="primary" busy={job === 'login setup'} disabled={!!job} onClick={() => run('login setup', () => api.post('/api/setup/login'))}>{job === 'login setup' ? 'Starting…' : 'Set up login with AI'}</Button>
+        <Button busy={job === 'login check'} disabled={!!job} onClick={() => run('login check', () => api.post('/api/setup/check-login'))}>{job === 'login check' ? 'Checking…' : 'Check every account logs in'}</Button>
       </>}>
         <p className="mb-3 text-sm text-muted">Login is code, not AI: tests/login.ts is written once (the login-setup agent asks which kind of login the app has, maps the login page with Playwright's planner, and writes it), then every test logs in through it. The agent never sees a password.</p>
-        <Activity events={events} />
+        {(job === 'login setup' || job === 'login check') && <div className="mb-3"><Loading label={job === 'login setup' ? 'Setting up login…' : 'Checking every account…'} /></div>}
+        <Activity events={events} live={live} />
       </Card>
       {output && <Card title="Last output"><Pre>{output}</Pre></Card>}
-      {error && <p className="text-sm text-bad">{error}</p>}
+      {error && <Notice>{error}</Notice>}
     </div>
   );
 }
@@ -75,17 +85,22 @@ function AppUnderTest({ env, onSaved }: { env: any; onSaved: () => void }) {
   const [start, setStart] = useState<string | null>(null);
   const [origins, setOrigins] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState(false);
+  const lock = useRef(false);
   if (!env) return null;
   const save = async () => {
-    setMsg('');
+    if (lock.current) return;
+    lock.current = true;
+    setSaving(true); setMsg('');
     try {
       if (start !== null) await api.put('/api/env', { key: 'START_PAGE', value: start });
       if (origins !== null) await api.put('/api/guardrails/origins', { origins: origins.split(/[\s,]+/).filter(Boolean) });
       setMsg('Saved.'); onSaved();
     } catch (e) { setMsg(errorText(e)); }
+    finally { lock.current = false; setSaving(false); }
   };
   return (
-    <Card title="App under test" actions={<Button kind="primary" onClick={save}>Save</Button>}>
+    <Card title="App under test" actions={<Button kind="primary" busy={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>}>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Start page (START_PAGE in .env)" hint="Where every test starts.">
           <input className={inputCls} value={start ?? env.start_page} onChange={e => setStart(e.target.value)} placeholder="https://test.app.example.com" />
@@ -94,7 +109,7 @@ function AppUnderTest({ env, onSaved }: { env: any; onSaved: () => void }) {
           <textarea className={`${inputCls} font-mono`} rows={3} value={origins ?? env.allowed_origins.join('\n')} onChange={e => setOrigins(e.target.value)} />
         </Field>
       </div>
-      {msg && <p className="mt-2 text-sm text-muted">{msg}</p>}
+      {msg && <div className="mt-2"><Notice tone={msg === 'Saved.' ? 'good' : 'bad'}>{msg}</Notice></div>}
     </Card>
   );
 }
@@ -103,11 +118,17 @@ function Accounts({ env, onSaved }: { env: any; onSaved: () => void }) {
   const [label, setLabel] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const lock = useRef(false);
   if (!env) return null;
   const set = async (key: string) => {
-    setMsg('');
+    if (lock.current) return;
+    lock.current = true;
+    setSaving(key); setMsg('');
     try { await api.put('/api/env', { key, value: values[key] ?? '' }); setValues({ ...values, [key]: '' }); setMsg(`${key} saved.`); onSaved(); }
     catch (e) { setMsg(errorText(e)); }
+    finally { lock.current = false; setSaving(null); }
   };
   return (
     <Card title="Test accounts (.env)">
@@ -120,15 +141,22 @@ function Accounts({ env, onSaved }: { env: any; onSaved: () => void }) {
           return <div className="flex gap-1.5">
             <input aria-label={key} type={part === 'PASSWORD' ? 'password' : 'text'} autoComplete="off" className={inputCls}
               placeholder={isSet ? 'set (type to replace)' : 'not set'} value={values[key] ?? ''} onChange={e => setValues({ ...values, [key]: e.target.value })} />
-            <Button disabled={!values[key]} onClick={() => set(key)}>Save</Button>
+            <Button busy={saving === key} disabled={!values[key] || !!saving || adding} onClick={() => set(key)}>{saving === key ? 'Saving…' : 'Save'}</Button>
           </div>;
         }),
       ])} />
       <div className="mt-3 flex flex-wrap gap-2">
-        <input className={`${inputCls} max-w-xs`} placeholder="New account, e.g. Manager test account" value={label} onChange={e => setLabel(e.target.value)} />
-        <Button disabled={!label.trim()} onClick={async () => { await api.post('/api/env/accounts', { label }); setLabel(''); onSaved(); }}>Add account</Button>
+        <input className={`${inputCls} max-w-xs`} placeholder="New account, e.g. Manager test account" value={label} disabled={adding} onChange={e => setLabel(e.target.value)} />
+        <Button busy={adding} disabled={!label.trim() || !!saving} onClick={async () => {
+          if (lock.current) return;
+          lock.current = true;
+          setAdding(true); setMsg('');
+          try { await api.post('/api/env/accounts', { label }); setLabel(''); setMsg('Account added.'); onSaved(); }
+          catch (e) { setMsg(errorText(e)); }
+          finally { lock.current = false; setAdding(false); }
+        }}>{adding ? 'Adding…' : 'Add account'}</Button>
       </div>
-      {msg && <p className="mt-2 text-sm text-muted">{msg}</p>}
+      {msg && <div className="mt-2"><Notice tone={msg.endsWith('saved.') || msg === 'Account added.' ? 'good' : 'bad'}>{msg}</Notice></div>}
     </Card>
   );
 }

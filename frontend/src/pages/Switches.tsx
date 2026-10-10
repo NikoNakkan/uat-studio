@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { Button, Card, Empty, Pill, errorText, inputCls } from '../ui';
+import { Button, Card, Empty, Loading, Notice, Pill, Spinner, errorText, inputCls, useTitle } from '../ui';
 
 type Item = { id: string; name: string; kind: string; area: string; status: string; core: boolean; core_reason?: string; what: string;
   requires: string[]; soft: { id: string; loss: string }[]; required_by: string[]; soft_by: { id: string; loss: string }[];
@@ -12,6 +12,7 @@ const KIND: Record<string, string> = { stage: 'Stage', agent: 'Agent', skill: 'S
 
 /** Switch parts of the flow on and off. What cannot work without a part goes off with it; what only works less well is named. */
 export function SwitchesPage() {
+  useTitle('Feature switches');
   const qc = useQueryClient();
   const data = useQuery({ queryKey: ['features'], queryFn: () => api.get<{ items: Item[]; losses: any[]; problems: string[] }>('/api/features') });
   const [q, setQ] = useState('');
@@ -19,6 +20,8 @@ export function SwitchesPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [pending, setPending] = useState<{ id: string; action: 'on' | 'off'; preview: Preview } | null>(null);
   const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const lock = useRef(false);
   const items = data.data?.items ?? [];
   const byId = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
   const groups = useMemo(() => {
@@ -32,18 +35,27 @@ export function SwitchesPage() {
   }, [items, q, showPlanned]);
 
   const ask = async (id: string, action: 'on' | 'off') => {
+    if (lock.current) return;
+    lock.current = true;
     setError('');
+    setBusyId(id);
     try {
       const preview = await api.post<Preview>('/api/features/switch', { id, action });
       setSelected(id);
-      if (!preview.allowed) { setPending({ id, action, preview }); return; }
-      if (!preview.also?.length && !preview.losses?.length) return apply(id, action);
-      setPending({ id, action, preview });
+      const immediate = preview.allowed && !preview.also?.length && !preview.losses?.length;
+      if (!immediate) { setPending({ id, action, preview }); return; }
+      await api.post('/api/features/switch', { id, action, apply: true });
+      qc.invalidateQueries({ queryKey: ['features'] });
     } catch (e) { setError(errorText(e)); }
+    finally { lock.current = false; setBusyId(null); }
   };
   const apply = async (id: string, action: 'on' | 'off') => {
+    if (lock.current) return;
+    lock.current = true;
+    setBusyId(id);
     try { await api.post('/api/features/switch', { id, action, apply: true }); setPending(null); qc.invalidateQueries({ queryKey: ['features'] }); }
     catch (e) { setError(errorText(e)); }
+    finally { lock.current = false; setBusyId(null); }
   };
   const builtOn = items.filter(i => i.status === 'built' && i.on).length;
   const builtOff = items.filter(i => i.status === 'built' && !i.on).length;
@@ -55,6 +67,7 @@ export function SwitchesPage() {
         <h1 className="text-xl font-semibold">Feature switches</h1>
         <p className="text-sm text-muted">Every stage, agent, skill and rule of the flow, and what it depends on (config/features.yaml). Your choices are saved in config/profile.yaml, and the run follows them.</p>
       </div>
+      {data.isPending ? <Loading label="Loading feature switches…" /> : data.isError ? <Notice>{errorText(data.error)}</Notice> : <>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="tnum"><b>{builtOn}</b> on · <b>{builtOff}</b> off · <b>{items.filter(i => i.core).length}</b> core · <b>{items.filter(i => i.status === 'planned').length}</b> planned</span>
         <input className={`${inputCls} max-w-xs`} placeholder="Find a part" value={q} onChange={e => setQ(e.target.value)} />
@@ -66,24 +79,24 @@ export function SwitchesPage() {
           <ul className="grid gap-1 text-sm">{data.data.losses.map((l, i) => <li key={i}><b>{byId[l.who]?.name}</b>: {l.loss}</li>)}</ul>
         </Card>
       ) : null}
-      {error && <p className="text-sm text-bad">{error}</p>}
+      {error && <Notice>{error}</Notice>}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="grid gap-4">
           {Object.entries(groups).map(([area, list]) => (
             <Card key={area} title={`${area} · ${list.length}`}>
               <ul className="divide-y divide-line">
                 {list.map(i => {
-                  const locked = i.core || i.status !== 'built';
+                  const locked = i.core || i.status !== 'built' || !!busyId;
                   return (
                     <li key={i.id} className={`flex items-center gap-3 py-2 ${selected === i.id ? 'bg-accent-soft/50 -mx-2 px-2 rounded' : ''}`}>
-                      <button role="switch" aria-checked={i.on} aria-label={`Switch ${i.name}`} disabled={locked}
+                      <button role="switch" aria-checked={i.on} aria-busy={busyId === i.id || undefined} aria-label={`Switch ${i.name}`} disabled={locked}
                         onClick={() => ask(i.id, i.on ? 'off' : 'on')}
                         className={`relative h-5 w-9 shrink-0 rounded-full transition ${i.on ? 'bg-accent' : 'bg-line'} ${locked ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface shadow transition ${i.on ? 'left-4.5' : 'left-0.5'}`} />
                       </button>
                       <button className="min-w-0 flex-1 text-left" onClick={() => setSelected(i.id)}>
-                        <div className="truncate text-sm font-medium">{i.name}</div>
+                        <div className="flex items-center gap-2 truncate text-sm font-medium">{i.name}{busyId === i.id && <Spinner className="h-3 w-3 text-muted" />}</div>
                         <div className="truncate font-mono text-xs text-muted">{i.id}</div>
                       </button>
                       <span className="hidden text-xs text-muted sm:inline">{KIND[i.kind] ?? i.kind}</span>
@@ -96,6 +109,7 @@ export function SwitchesPage() {
               </ul>
             </Card>
           ))}
+          {Object.keys(groups).length === 0 && <Card><Empty>{q ? 'No part matches that search.' : 'No parts to show.'}</Empty></Card>}
         </div>
         <div className="lg:sticky lg:top-4 lg:self-start grid gap-4">
           {pending && (
@@ -106,15 +120,16 @@ export function SwitchesPage() {
               {pending.preview.losses?.length ? <div className="mt-2 text-sm"><p className="font-medium">Works less well:</p>
                 <ul className="list-disc pl-5">{pending.preview.losses.map((l, n) => <li key={n}><b>{byId[l.who]?.name}</b>: {l.loss}</li>)}</ul></div> : null}
               <div className="mt-3 flex gap-2">
-                {pending.preview.allowed && <Button kind="primary" onClick={() => apply(pending.id, pending.action)}>
-                  Switch {pending.action}{pending.preview.also?.length ? ` ${pending.preview.also.length + 1} parts` : ''}</Button>}
-                <Button onClick={() => setPending(null)}>{pending.preview.allowed ? 'Cancel' : 'Close'}</Button>
+                {pending.preview.allowed && <Button kind="primary" busy={busyId === pending.id} onClick={() => apply(pending.id, pending.action)}>
+                  {busyId === pending.id ? 'Switching…' : `Switch ${pending.action}${pending.preview.also?.length ? ` ${pending.preview.also.length + 1} parts` : ''}`}</Button>}
+                <Button disabled={busyId === pending.id} onClick={() => setPending(null)}>{pending.preview.allowed ? 'Cancel' : 'Close'}</Button>
               </div>
             </Card>
           )}
           {sel ? <Inspector item={sel} byId={byId} onSelect={setSelected} /> : <Card><Empty>Pick a part to see what it needs and what needs it.</Empty></Card>}
         </div>
       </div>
+      </>}
     </div>
   );
 }

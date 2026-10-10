@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { Button, Card, Empty, Pill, Pre, Table, Tabs, errorText, inputCls } from '../ui';
+import { Button, Card, Empty, Loading, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, inputCls, useTitle } from '../ui';
+
+const TAB_LABEL: Record<string, string> = {
+  glossary: 'Glossary', appmap: 'App map', config: 'Rules', tests: 'Test files', agents: 'Agents', skills: 'Skills',
+};
 
 export function KnowledgePage() {
   const [tab, setTab] = useState('glossary');
+  useTitle(`Knowledge · ${TAB_LABEL[tab] ?? 'Knowledge'}`);
   return (
     <div className="mx-auto grid max-w-7xl gap-4">
       <div>
@@ -27,19 +32,32 @@ function Glossary() {
   const q = useQuery({ queryKey: ['glossary'], queryFn: () => api.get<{ text: string }>('/api/kit/glossary') });
   const [text, setText] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState(false);
+  const lock = useRef(false);
+  const save = async () => {
+    if (lock.current || text === null) return;
+    lock.current = true;
+    setSaving(true); setMsg('');
+    try { await api.put('/api/kit/glossary', { text }); setMsg('Saved.'); setText(null); await q.refetch(); }
+    catch (e) { setMsg(errorText(e)); }
+    finally { lock.current = false; setSaving(false); }
+  };
   return (
-    <Card title="GLOSSARY.md" actions={<Button kind="primary" disabled={text === null} onClick={async () => {
-      try { await api.put('/api/kit/glossary', { text }); setMsg('Saved.'); setText(null); q.refetch(); } catch (e) { setMsg(errorText(e)); }
-    }}>Save</Button>}>
+    <Card title="GLOSSARY.md" actions={<Button kind="primary" busy={saving} disabled={text === null || q.isPending} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>}>
       <p className="mb-2 text-sm text-muted">The app's own words, one meaning each. The clarifier adds terms as the author explains them.</p>
-      <textarea aria-label="Glossary" className={`${inputCls} font-mono`} rows={20} value={text ?? q.data?.text ?? ''} onChange={e => setText(e.target.value)} />
-      {msg && <p className="mt-2 text-sm text-muted">{msg}</p>}
+      <QueryGate pending={q.isPending} error={q.isError ? q.error : null} label="Loading the glossary…">
+        <textarea aria-label="Glossary" className={`${inputCls} font-mono`} rows={20} disabled={saving} value={text ?? q.data?.text ?? ''} onChange={e => setText(e.target.value)} />
+        {text !== null && <p className="mt-2 text-xs text-warn">Unsaved changes</p>}
+        {msg && <div className="mt-2"><Notice tone={msg === 'Saved.' ? 'good' : 'bad'}>{msg}</Notice></div>}
+      </QueryGate>
     </Card>
   );
 }
 
 function AppMap() {
   const q = useQuery({ queryKey: ['appmap'], queryFn: () => api.get<{ text: string; data: any }>('/api/kit/app-map') });
+  if (q.isPending) return <Loading label="Loading the app map…" />;
+  if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
   const pages = q.data?.data?.pages ?? {};
   if (!Object.keys(pages).length) return <Empty>No app map yet. Playwright's planner writes it during the planner check.</Empty>;
   return (
@@ -60,19 +78,38 @@ function Config() {
   const file = useQuery({ queryKey: ['config', name], queryFn: () => api.get<{ text: string }>(`/api/kit/config/${name}`) });
   const [text, setText] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState(false);
+  const lock = useRef(false);
   const qc = useQueryClient();
   useEffect(() => { setText(null); setMsg(''); }, [name]);
+  const save = async () => {
+    if (lock.current || text === null) return;
+    lock.current = true;
+    setSaving(true); setMsg('');
+    try {
+      await api.put(`/api/kit/config/${name}`, { text });
+      setMsg('Saved. Run the kit self-tests on the Settings page after changing rules.');
+      setText(null);
+      qc.invalidateQueries({ queryKey: ['config', name] });
+    } catch (e) { setMsg(errorText(e)); }
+    finally { lock.current = false; setSaving(false); }
+  };
   return (
     <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
-      <Card title="Files"><ul className="grid gap-1 text-sm">{(list.data ?? []).map(f => (
-        <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-accent hover:underline'}`} onClick={() => setName(f.name)}>{f.name}</button></li>
-      ))}</ul><p className="mt-3 text-xs text-muted">Feature switches are changed on their own page.</p></Card>
-      <Card title={`config/${name}`} actions={<Button kind="primary" disabled={text === null} onClick={async () => {
-        try { await api.put(`/api/kit/config/${name}`, { text }); setMsg('Saved. Run the kit self-tests on the Settings page after changing rules.'); setText(null); qc.invalidateQueries({ queryKey: ['config', name] }); }
-        catch (e) { setMsg(errorText(e)); }
-      }}>Save</Button>}>
-        <textarea aria-label={name} className={`${inputCls} font-mono text-xs`} rows={28} value={text ?? file.data?.text ?? ''} onChange={e => setText(e.target.value)} />
-        {msg && <p className="mt-2 text-sm text-muted">{msg}</p>}
+      <Card title="Files">
+        <QueryGate pending={list.isPending} error={list.isError ? list.error : null} label="Loading rule files…">
+          <ul className="grid gap-1 text-sm">{(list.data ?? []).map(f => (
+            <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-accent hover:underline'}`} onClick={() => setName(f.name)}>{f.name}</button></li>
+          ))}</ul>
+        </QueryGate>
+        <p className="mt-3 text-xs text-muted">Feature switches are changed on their own page.</p>
+      </Card>
+      <Card title={`config/${name}`} actions={<Button kind="primary" busy={saving} disabled={text === null || file.isPending} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>}>
+        <QueryGate pending={file.isPending} error={file.isError ? file.error : null} label={`Loading ${name}…`}>
+          <textarea aria-label={name} className={`${inputCls} font-mono text-xs`} rows={28} disabled={saving} value={text ?? file.data?.text ?? ''} onChange={e => setText(e.target.value)} />
+          {text !== null && <p className="mt-2 text-xs text-warn">Unsaved changes</p>}
+          {msg && <div className="mt-2"><Notice tone={msg.startsWith('Saved.') ? 'good' : 'bad'}>{msg}</Notice></div>}
+        </QueryGate>
       </Card>
     </div>
   );
@@ -84,17 +121,31 @@ function TestFiles() {
   const file = useQuery({ queryKey: ['kittext', open], queryFn: () => api.get<{ text: string }>(`/api/kit/text?path=${encodeURIComponent(open!)}`), enabled: !!open });
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-      <Card title="tests/"><ul className="grid gap-1 font-mono text-xs">{(list.data ?? []).map(t => (
-        <li key={t.path} className="flex items-center gap-2"><button className="text-left text-accent hover:underline" onClick={() => setOpen(t.path)}>{t.path}</button>
-          {t.removed && <Pill value="-" label="removed" />}</li>))}</ul></Card>
-      <Card title={open ?? 'Code'}>{open ? <Pre className="max-h-[70vh] overflow-y-auto">{file.data?.text ?? 'Loading…'}</Pre> : <Empty>Pick a file.</Empty>}</Card>
+      <Card title="tests/">
+        <QueryGate pending={list.isPending} error={list.isError ? list.error : null} label="Loading test files…">
+          {list.data?.length ? <ul className="grid gap-1 font-mono text-xs">{list.data.map(t => (
+            <li key={t.path} className="flex items-center gap-2">
+              <button className={`text-left hover:underline ${open === t.path ? 'font-semibold text-ink' : 'text-accent'}`} aria-current={open === t.path ? 'true' : undefined} onClick={() => setOpen(t.path)}>{t.path}</button>
+              {t.removed && <Pill value="-" label="removed" />}
+            </li>))}</ul> : <Empty>No test files.</Empty>}
+        </QueryGate>
+      </Card>
+      <Card title={open ?? 'Code'}>
+        {!open ? <Empty>Pick a file.</Empty>
+          : <QueryGate pending={file.isPending} error={file.isError ? file.error : null} label="Loading file…">
+              <Pre className="max-h-[70vh] overflow-y-auto">{file.data?.text}</Pre>
+            </QueryGate>}
+      </Card>
     </div>
   );
 }
 
 function Agents() {
   const q = useQuery({ queryKey: ['agents'], queryFn: () => api.get<any[]>('/api/kit/agents') });
-  return <div className="grid gap-3">{(q.data ?? []).map(a => (
+  if (q.isPending) return <Loading label="Loading agents…" />;
+  if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
+  if (!q.data.length) return <Empty>No agents found.</Empty>;
+  return <div className="grid gap-3">{q.data.map(a => (
     <details key={a.name} className="rounded-lg border border-line bg-surface p-3">
       <summary className="cursor-pointer"><b>{a.name}</b> <span className="text-sm text-muted">{a.description}</span></summary>
       <p className="mt-2 font-mono text-xs text-muted">Tools: {(a.tools ?? []).join(', ')}</p>
@@ -105,7 +156,10 @@ function Agents() {
 
 function Skills() {
   const q = useQuery({ queryKey: ['skills'], queryFn: () => api.get<any[]>('/api/kit/skills') });
-  return <div className="grid gap-3">{(q.data ?? []).map(s => (
+  if (q.isPending) return <Loading label="Loading skills…" />;
+  if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
+  if (!q.data.length) return <Empty>No skills found.</Empty>;
+  return <div className="grid gap-3">{q.data.map(s => (
     <details key={s.name} className="rounded-lg border border-line bg-surface p-3">
       <summary className="cursor-pointer"><b>{s.name}</b> <Pill value={s.on ? 'on' : 'off'} /> <span className="text-sm text-muted">{s.description}</span></summary>
       <p className="mt-2 font-mono text-xs text-muted">{s.files.join(' · ')}</p>

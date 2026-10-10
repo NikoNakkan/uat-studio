@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, runFile, type RunDetail } from '../api';
@@ -6,24 +6,30 @@ import { Activity } from '../components/Activity';
 import { NeedsYou } from '../components/NeedsYou';
 import { Signoff } from '../components/Signoff';
 import { VisualRegression } from '../components/VisualRegression';
-import { Button, Card, Empty, Pill, Pre, Table, Tabs, errorText, inputCls, useEvents } from '../ui';
+import { Button, Card, Empty, Loading, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, inputCls, useEvents, useTitle } from '../ui';
 
 export function RunPage() {
   const { runId = '' } = useParams();
   const qc = useQueryClient();
   const run = useQuery({ queryKey: ['run', runId], queryFn: () => api.get<RunDetail>(`/api/runs/${runId}`), refetchInterval: 5000 });
-  const events = useEvents(`/api/runs/${runId}/events`, [['run', runId], ['interactions']]);
+  const { events, live } = useEvents(`/api/runs/${runId}/events`, [['run', runId], ['interactions']]);
   const [tab, setTab] = useState('activity');
   const [stage, setStage] = useState<string | undefined>();
   const [visualFocus, setVisualFocus] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const act = async (fn: () => Promise<unknown>) => {
-    setError('');
+  const [acting, setActing] = useState<string | null>(null);
+  const actingLock = useRef(false);
+  const act = async (id: string, fn: () => Promise<unknown>) => {
+    if (actingLock.current) return;
+    actingLock.current = true;
+    setActing(id); setError('');
     try { await fn(); qc.invalidateQueries({ queryKey: ['run', runId] }); } catch (e) { setError(errorText(e)); }
+    finally { actingLock.current = false; setActing(null); }
   };
   const r = run.data;
-  if (run.isError) return <Empty>{errorText(run.error)}</Empty>;
-  if (!r) return <Empty>Loading…</Empty>;
+  useTitle(r?.id ?? 'Run');
+  if (run.isError) return <Notice>{errorText(run.error)}</Notice>;
+  if (!r) return <Loading label="Loading this run…" />;
   const d = r.data;
   const prog = d.progress ?? {};
   const tests = prog.tests ?? {};
@@ -43,21 +49,21 @@ export function RunPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {r.running
-            ? <Button kind="danger" onClick={() => act(() => api.post(`/api/runs/${runId}/stop`))}>Stop</Button>
-            : <Button kind="primary" onClick={() => act(() => api.post(`/api/runs/${runId}/start`))}>{prog.stages && Object.keys(prog.stages).length ? 'Resume' : 'Start'}</Button>}
-          {!r.running && failedStage && <Button onClick={() => act(() => api.post(`/api/runs/${runId}/retry`, { stage: failedStage.id }))}>Retry {failedStage.id}</Button>}
+            ? <Button kind="danger" busy={acting === 'stop'} disabled={!!acting} onClick={() => act('stop', () => api.post(`/api/runs/${runId}/stop`))}>{acting === 'stop' ? 'Stopping…' : 'Stop'}</Button>
+            : <Button kind="primary" busy={acting === 'start'} disabled={!!acting} onClick={() => act('start', () => api.post(`/api/runs/${runId}/start`))}>{acting === 'start' ? 'Starting…' : prog.stages && Object.keys(prog.stages).length ? 'Resume' : 'Start'}</Button>}
+          {!r.running && failedStage && <Button busy={acting === 'retry'} disabled={!!acting} onClick={() => act('retry', () => api.post(`/api/runs/${runId}/retry`, { stage: failedStage.id }))}>{acting === 'retry' ? 'Retrying…' : `Retry ${failedStage.id}`}</Button>}
           {d.cases && <a className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2" href={`/api/runs/${runId}/clarified.xlsx`}
             title="The cases as clarified, in the template: paste them back into your Excel">Clarified Excel</a>}
           {r.results_ready && <a className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
         </div>
       </div>
-      {error && <p className="text-sm text-bad">{error}</p>}
+      {error && <Notice>{error}</Notice>}
 
       <ol className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
         {r.stages.map((s, n) => (
           <li key={s.id}>
-            <button onClick={() => { setStage(stage === s.id ? undefined : s.id); setTab('activity'); }}
-              className={`w-full rounded-md border px-2.5 py-2 text-left ${stage === s.id ? 'border-accent' : 'border-line'} ${s.on ? 'bg-surface' : 'bg-surface-2 opacity-70'}`}
+            <button type="button" aria-pressed={stage === s.id} onClick={() => { setStage(stage === s.id ? undefined : s.id); setTab('activity'); }}
+              className={`w-full rounded-md border px-2.5 py-2 text-left ${stage === s.id ? 'border-accent ring-1 ring-accent' : 'border-line'} ${s.on ? 'bg-surface' : 'bg-surface-2 opacity-70'}`}
               title={s.does || s.note}>
               <div className="flex items-center justify-between gap-1"><span className="text-xs text-muted tnum">{n + 1}</span><Pill value={s.on ? s.status : 'off'} /></div>
               <div className="mt-1 truncate text-sm font-medium">{s.id.replace('_', ' ')}</div>
@@ -69,8 +75,10 @@ export function RunPage() {
 
       <NeedsYou items={r.pending} onSignoff={() => setTab('signoff')} />
 
-      <Tabs tabs={tabs} current={tab} onChange={setTab} />
-      {tab === 'activity' && <Activity events={events} stage={stage} />}
+      <div className="sticky top-0 z-10 -mx-4 bg-bg/95 px-4 py-1 backdrop-blur md:-mx-8 md:px-8">
+        <Tabs tabs={tabs} current={tab} onChange={setTab} />
+      </div>
+      {tab === 'activity' && <Activity events={events} stage={stage} live={live} />}
       {tab === 'cases' && <Cases d={d} />}
       {tab === 'changes' && <Changes r={r} />}
       {tab === 'tests' && <TestsTab d={d} />}
@@ -145,7 +153,12 @@ function TestsTab({ d }: { d: Record<string, any> }) {
         ])} /> : <Empty>No tests checked yet.</Empty>}
         {gen.length > 0 && <p className="mt-3 text-xs text-muted">Generated in this run: {gen.map(g => g.test_id).join(', ')}</p>}
       </Card>
-      <Card title={open ?? 'Test code'}>{open ? <Pre className="max-h-[70vh] overflow-y-auto">{file.data?.text ?? 'Loading…'}</Pre> : <Empty>Pick a test file to read it.</Empty>}</Card>
+      <Card title={open ?? 'Test code'}>
+        {!open ? <Empty>Pick a test file to read it.</Empty>
+          : <QueryGate pending={file.isPending} error={file.isError ? file.error : null} label="Loading test code…">
+              <Pre className="max-h-[70vh] overflow-y-auto">{file.data?.text}</Pre>
+            </QueryGate>}
+      </Card>
     </div>
   );
 }
@@ -153,6 +166,7 @@ function TestsTab({ d }: { d: Record<string, any> }) {
 function Results({ runId, d, tests, onVisual }: { runId: string; d: Record<string, any>; tests: Record<string, any>; onVisual: (id: string) => void }) {
   const screensOf = (id: string) => (d.screens?.pairs ?? d.screens?.flagged ?? []).filter((p: any) => p.test_id === id);
   const [traceMsg, setTraceMsg] = useState('');
+  const [opening, setOpening] = useState<string | null>(null);
   const check = d.evidence_check?.tests ?? {};
   const [pick, setPick] = useState<string | null>(null);
   const t = pick ? tests[pick] : null;
@@ -175,19 +189,24 @@ function Results({ runId, d, tests, onVisual }: { runId: string; d: Record<strin
       </Card>
       {pick && t && (
         <Card title={`${pick} · evidence in ${t.evidence}`}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {mine.filter(f => f.endsWith('.png')).map(f => (
-              <figure key={f} className="grid gap-1"><a href={runFile(runId, f)} target="_blank" rel="noreferrer">
-                <img src={runFile(runId, f)} alt={f} className="rounded border border-line" loading="lazy" /></a>
-                <figcaption className="font-mono text-xs text-muted">{f.split('/').pop()}</figcaption></figure>
-            ))}
-          </div>
-          <ul className="mt-3 grid gap-1 text-sm">
-            {(files.data ?? []).filter(f => /\.(zip|webm)$/.test(f)).filter(f => f.toLowerCase().includes(pick.toLowerCase())).map(f =>
-              <li key={f}><a className="text-accent hover:underline" href={runFile(runId, f)}>{f.endsWith('.zip') ? 'Trace' : 'Video'}: {f}</a>
-                {f.endsWith('.zip') && <> <Button kind="ghost" onClick={async () => { try { await api.post(`/api/runs/${runId}/open-trace`, { path: f }); setTraceMsg('The trace viewer opens in a new window on this machine.'); } catch (e) { setTraceMsg(errorText(e)); } }}>Open in trace viewer</Button></>}</li>)}
-          </ul>
-          {traceMsg && <p className="mt-2 text-sm text-muted">{traceMsg}</p>}
+          <QueryGate pending={files.isPending} error={files.isError ? files.error : null} label="Loading evidence…">
+            {mine.some(f => f.endsWith('.png')) ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {mine.filter(f => f.endsWith('.png')).map(f => <Shot key={f} src={runFile(runId, f)} name={f.split('/').pop() ?? f} />)}
+              </div>
+            ) : <Empty>No screenshots for this test.</Empty>}
+            <ul className="mt-3 grid gap-1 text-sm">
+              {(files.data ?? []).filter(f => /\.(zip|webm)$/.test(f)).filter(f => f.toLowerCase().includes(pick.toLowerCase())).map(f =>
+                <li key={f} className="flex flex-wrap items-center gap-2"><a className="text-accent hover:underline" href={runFile(runId, f)}>{f.endsWith('.zip') ? 'Trace' : 'Video'}: {f}</a>
+                  {f.endsWith('.zip') && <Button kind="ghost" busy={opening === f} disabled={!!opening} onClick={async () => {
+                    setOpening(f); setTraceMsg('');
+                    try { await api.post(`/api/runs/${runId}/open-trace`, { path: f }); setTraceMsg('The trace viewer opens in a new window on this machine.'); }
+                    catch (e) { setTraceMsg(errorText(e)); }
+                    finally { setOpening(null); }
+                  }}>{opening === f ? 'Opening…' : 'Open in trace viewer'}</Button>}</li>)}
+            </ul>
+            {traceMsg && <div className="mt-2"><Notice tone={traceMsg.startsWith('The trace') ? 'good' : 'bad'}>{traceMsg}</Notice></div>}
+          </QueryGate>
         </Card>
       )}
     </div>
@@ -226,10 +245,29 @@ function Console({ r }: { r: RunDetail }) {
 }
 
 /** A person accepts one error group as harmless noise (decision 31: the analyst only proposes). */
+function Shot({ src, name }: { src: string; name: string }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  return (
+    <figure className="grid gap-1">
+      <a href={src} target="_blank" rel="noreferrer" className="relative block">
+        {state === 'loading' && <div className="h-40 animate-pulse rounded bg-surface-2" role="status" aria-label={`Loading ${name}`} />}
+        {state === 'error' && <p className="rounded border border-line p-3 text-xs text-muted">This screenshot could not be loaded.</p>}
+        <img src={src} alt={name} loading="lazy"
+          ref={img => { if (img?.complete) setState(img.naturalWidth > 0 ? 'ready' : 'error'); }}
+          onLoad={() => setState('ready')} onError={() => setState('error')}
+          className={`w-full rounded border border-line ${state === 'ready' ? '' : 'absolute h-px w-px opacity-0'}`} />
+      </a>
+      <figcaption className="font-mono text-xs text-muted">{name}</figcaption>
+    </figure>
+  );
+}
+
 function NoiseButton({ group }: { group: any }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [state, setState] = useState('');
+  const [saving, setSaving] = useState(false);
+  const lock = useRef(false);
   const network = group.kind !== 'console' && group.kind !== 'page error';
   const path: string = String(group.message).split(' ')[1] ?? group.message;            // "404 /favicon.ico" -> "/favicon.ico"
   const [pattern, setPattern] = useState<string>(network ? path : group.message.replace(/#/g, '').slice(0, 120));
@@ -240,14 +278,18 @@ function NoiseButton({ group }: { group: any }) {
       <input className={inputCls} aria-label="Text to match" value={pattern} onChange={e => setPattern(e.target.value)} />
       <input className={inputCls} placeholder="Why it is harmless (required)" value={reason} onChange={e => setReason(e.target.value)} />
       <div className="flex gap-1.5">
-        <Button kind="primary" disabled={!reason.trim() || !pattern.trim()} onClick={async () => {
+        <Button kind="primary" busy={saving} disabled={!reason.trim() || !pattern.trim()} onClick={async () => {
+          if (lock.current) return;
+          lock.current = true;
+          setSaving(true);
           try {
             const code = String(group.message).match(/^(\d{3}) /)?.[1];   // filter_console: "404 /path"
             const status = network && code ? [Number(code)] : [];
             await api.post('/api/kit/console-noise', { kind: network ? 'network' : 'console', pattern, reason, status });
             setState('saved');
           } catch (e) { setState(errorText(e)); }
-        }}>Add</Button>
+          finally { lock.current = false; setSaving(false); }
+        }}>{saving ? 'Adding…' : 'Add'}</Button>
         <Button onClick={() => setOpen(false)}>Cancel</Button>
       </div>
       {state && state !== 'saved' && <span className="text-xs text-bad">{state}</span>}
@@ -277,9 +319,11 @@ function Files({ runId }: { runId: string }) {
   const files = useQuery({ queryKey: ['allfiles', runId], queryFn: () => api.get<string[]>(`/api/runs/${runId}/files`) });
   return (
     <Card title="Every file of this run">
-      <ul className="grid gap-0.5 font-mono text-xs">
-        {(files.data ?? []).map(f => <li key={f}><a className="text-accent hover:underline" href={runFile(runId, f)} target="_blank" rel="noreferrer">{f}</a></li>)}
-      </ul>
+      <QueryGate pending={files.isPending} error={files.isError ? files.error : null} label="Loading files…">
+        {files.data?.length
+          ? <ul className="grid gap-0.5 font-mono text-xs">{files.data.map(f => <li key={f}><a className="text-accent hover:underline" href={runFile(runId, f)} target="_blank" rel="noreferrer">{f}</a></li>)}</ul>
+          : <Empty>This run has no files yet.</Empty>}
+      </QueryGate>
     </Card>
   );
 }

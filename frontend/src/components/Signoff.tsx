@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type RunDetail } from '../api';
 import { Button, Card, Empty, Field, Pill, Table, errorText, inputCls } from '../ui';
@@ -13,15 +13,20 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
   const [by, setBy] = useState(() => localStorageGet('uat-signoff-by'));
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const lock = useRef(false);
   if (!check) return <Empty>The evidence is checked when the run reaches sign-off.</Empty>;
 
-  const post = async (url: string, body: unknown) => {
-    setError(''); setInfo('');
+  const post = async (key: string, url: string, body: unknown) => {
+    if (lock.current) return;
+    lock.current = true;
+    setBusyKey(key); setError(''); setInfo('');
     try {
       const res = await api.post<{ output: string }>(url, body);
       setInfo(res.output);
       qc.invalidateQueries({ queryKey: ['run', runId] });
     } catch (e) { setError(errorText(e)); }
+    finally { lock.current = false; setBusyKey(null); }
   };
   const units = Object.entries(check.units ?? {}) as [string, any][];
   const manual = Object.entries(check.tests ?? {}).filter(([, t]: any) => t.recommendation === 'MANUAL') as [string, any][];
@@ -36,8 +41,8 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
           <span className="text-sm">{reasoning[unit] ?? ''}</span>,
           signoff.decisions[unit]
             ? <span><Pill value={signoff.decisions[unit].decision} /> <span className="text-xs text-muted">by {signoff.decisions[unit].by}{signoff.decisions[unit].reason ? ` · ${signoff.decisions[unit].reason}` : ''}</span></span>
-            : sealed ? '—' : <Decide unit={unit} suggested={u.recommendation} disabled={!by.trim()} onDecide={(decision, reason) =>
-                post(`/api/runs/${runId}/signoff/decision`, { unit, decision, by, reason })} />,
+            : sealed ? '—' : <Decide unit={unit} suggested={u.recommendation} busy={busyKey === `d:${unit}`} disabled={!by.trim() || !!busyKey} onDecide={(decision, reason) =>
+                post(`d:${unit}`, `/api/runs/${runId}/signoff/decision`, { unit, decision, by, reason })} />,
         ])} />
       </Card>
 
@@ -47,8 +52,8 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
             <span className="font-mono">{id}</span>, t.title,
             signoff.manual?.[id]
               ? <span><Pill value={signoff.manual[id].result} /> <span className="text-xs text-muted">by {signoff.manual[id].by}{signoff.manual[id].evidence ? ` · proof: ${signoff.manual[id].evidence}` : ''}</span></span>
-              : sealed ? '—' : <ManualResult disabled={!by.trim()} onSave={(result, note, evidence) =>
-                  post(`/api/runs/${runId}/signoff/manual`, { test_id: id, result, by, note, evidence })} />,
+              : sealed ? '—' : <ManualResult busy={busyKey === `m:${id}`} disabled={!by.trim() || !!busyKey} onSave={(result, note, evidence) =>
+                  post(`m:${id}`, `/api/runs/${runId}/signoff/manual`, { test_id: id, result, by, note, evidence })} />,
           ])} />
         </Card>
       )}
@@ -56,17 +61,17 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
       {!sealed && (
         <Card title="Close the sign-off">
           <p className="mb-3 text-sm text-muted">Closing seals the run: every file the decisions rest on is hashed into manifest.json and results.xlsx is written. New results need a new run.</p>
-          <Button kind="primary" onClick={() => post(`/api/runs/${runId}/signoff/complete`, {})}>Close sign-off and write results</Button>
+          <Button kind="primary" busy={busyKey === 'complete'} disabled={!!busyKey} onClick={() => post('complete', `/api/runs/${runId}/signoff/complete`, {})}>{busyKey === 'complete' ? 'Closing…' : 'Close sign-off and write results'}</Button>
         </Card>
       )}
       {r.results_ready && <a className="justify-self-start rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
-      {info && <pre className="text-sm text-good">{info}</pre>}
-      {error && <pre className="text-sm text-bad">{error}</pre>}
+      {info && <pre role="status" className="text-sm text-good">{info}</pre>}
+      {error && <pre role="alert" className="text-sm text-bad">{error}</pre>}
     </div>
   );
 }
 
-function Decide({ unit, suggested, disabled, onDecide }: { unit: string; suggested: string; disabled: boolean; onDecide: (d: string, reason: string) => void }) {
+function Decide({ unit, suggested, disabled, busy, onDecide }: { unit: string; suggested: string; disabled: boolean; busy?: boolean; onDecide: (d: string, reason: string) => void }) {
   const [decision, setDecision] = useState(suggested === 'MANUAL' ? 'PASS' : suggested);
   const [reason, setReason] = useState('');
   return (
@@ -75,7 +80,7 @@ function Decide({ unit, suggested, disabled, onDecide }: { unit: string; suggest
         <select aria-label={`Decision for ${unit}`} className={inputCls} value={decision} onChange={e => setDecision(e.target.value)}>
           {['PASS', 'CONCERNS', 'FAIL', 'WAIVED'].map(v => <option key={v}>{v}</option>)}
         </select>
-        <Button kind="primary" disabled={disabled || (decision === 'WAIVED' && !reason.trim())} onClick={() => onDecide(decision, reason)}>Record</Button>
+        <Button kind="primary" busy={busy} disabled={disabled || (decision === 'WAIVED' && !reason.trim())} onClick={() => onDecide(decision, reason)}>{busy ? 'Recording…' : 'Record'}</Button>
       </div>
       <input className={inputCls} placeholder={decision === 'WAIVED' ? 'Why is this accepted? (required)' : 'Reason (optional)'} value={reason} onChange={e => setReason(e.target.value)} />
       {disabled && <span className="text-xs text-muted">Enter your name first.</span>}
@@ -83,7 +88,7 @@ function Decide({ unit, suggested, disabled, onDecide }: { unit: string; suggest
   );
 }
 
-function ManualResult({ disabled, onSave }: { disabled: boolean; onSave: (r: string, note: string, evidence: string) => void }) {
+function ManualResult({ disabled, busy, onSave }: { disabled: boolean; busy?: boolean; onSave: (r: string, note: string, evidence: string) => void }) {
   const [result, setResult] = useState('PASS');
   const [note, setNote] = useState('');
   const [evidence, setEvidence] = useState('');
@@ -92,7 +97,7 @@ function ManualResult({ disabled, onSave }: { disabled: boolean; onSave: (r: str
       <select className={inputCls} value={result} onChange={e => setResult(e.target.value)}>{['PASS', 'FAIL', 'NOT_RUN'].map(v => <option key={v}>{v}</option>)}</select>
       <input className={inputCls} placeholder="Note" value={note} onChange={e => setNote(e.target.value)} />
       <input className={inputCls} placeholder="Where the proof is" value={evidence} onChange={e => setEvidence(e.target.value)} />
-      <Button kind="primary" disabled={disabled} onClick={() => onSave(result, note, evidence)}>Record</Button>
+      <Button kind="primary" busy={busy} disabled={disabled} onClick={() => onSave(result, note, evidence)}>{busy ? 'Recording…' : 'Record'}</Button>
     </div>
   );
 }

@@ -21,29 +21,34 @@ export function App() {
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => api.get<any>('/api/settings') });
   const open = useQuery({ queryKey: ['interactions'], queryFn: () => api.get<Interaction[]>('/api/interactions'), refetchInterval: 3000 });
   return (
-    <div className="flex min-h-full flex-col md:flex-row">
-      <aside className="border-b border-line bg-surface md:w-56 md:shrink-0 md:border-b-0 md:border-r">
+    <div className="flex h-full min-h-0 flex-col md:flex-row">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow">Skip to content</a>
+      <aside className="shrink-0 border-b border-line bg-surface md:h-full md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
         <div className="flex items-center gap-2 px-4 py-3">
           <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-accent-ink font-mono text-xs font-semibold">UAT</span>
           <div><div className="font-semibold leading-tight">UAT Studio</div>
             <div className="text-xs text-muted leading-tight">Excel in · evidence out</div></div>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4">
+        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4" aria-label="Pages">
           {NAV.map(n => (
             <NavLink key={n.to} to={n.to} end={n.end}
-              className={({ isActive }) => `whitespace-nowrap rounded-md px-3 py-1.5 text-sm ${isActive ? 'bg-accent-soft font-medium text-ink' : 'text-muted hover:text-ink hover:bg-surface-2'}`}>
+              className={({ isActive }) => `whitespace-nowrap rounded-md px-3 py-2 text-sm ${isActive ? 'bg-accent-soft font-medium text-ink' : 'text-muted hover:text-ink hover:bg-surface-2'}`}>
               {n.label}
             </NavLink>
           ))}
         </nav>
-        <div className="hidden gap-2 px-4 pb-4 text-xs md:grid">
-          <Status ok={!!health.data?.kit_found} label={health.data?.kit_found ? 'Kit found' : 'Kit not found'} />
-          <Status ok={!!settings.data?.api_key_set} label={settings.data?.api_key_set ? 'API key set' : 'No API key'} />
-          {health.data?.running?.length ? <Status ok label={`Running: ${health.data.running[0]}`} /> : null}
-          {open.data?.length ? <span className="rounded bg-warn/15 px-2 py-1 font-medium text-warn">{open.data.length} waiting for you</span> : null}
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-3 text-xs md:grid md:gap-2 md:pb-4">
+          {health.isError
+            ? <Status ok={false} label="Cannot reach the server" />
+            : <Status pending={health.isPending} ok={!!health.data?.kit_found} label={health.isPending ? 'Checking the kit…' : health.data?.kit_found ? 'Kit found' : 'Kit not found'} />}
+          <Status pending={settings.isPending} ok={!!settings.data?.api_key_set} label={settings.isPending ? 'Checking the API key…' : settings.isError ? 'API key unknown' : settings.data?.api_key_set ? 'API key set' : 'No API key'} />
+          {!health.isPending && health.data?.running?.length ? <Status ok label={`Running: ${health.data.running[0]}`} /> : null}
+          {open.isPending
+            ? <Status pending label="Checking for questions…" />
+            : open.data?.length ? <span className="rounded bg-warn/15 px-2 py-1 font-medium text-warn">{open.data.length} waiting for you</span> : null}
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 py-5 md:px-8">
+      <main id="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 outline-none md:px-8">
         <Routes>
           <Route path="/" element={<RunsPage />} />
           <Route path="/runs/:runId" element={<RunPage />} />
@@ -57,6 +62,7 @@ export function App() {
   );
 }
 
-function Status({ ok, label }: { ok: boolean; label: string }) {
-  return <span className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${ok ? 'bg-good' : 'bg-bad'}`} />{label}</span>;
+function Status({ ok, label, pending = false }: { ok?: boolean; label: string; pending?: boolean }) {
+  const dot = pending ? 'animate-pulse bg-muted' : ok ? 'bg-good' : 'bg-bad';
+  return <span className="flex items-center gap-2" role="status"><span className={`h-2 w-2 rounded-full ${dot}`} />{label}</span>;
 }
