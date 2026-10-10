@@ -218,7 +218,7 @@ class Engine:
             mismatches = ""
             for group, items in groups.items():
                 o = await pw_agents.run_planner(c.run_id, c.run, items, c.stage)
-                await self.usage(c, "playwright-test-planner", o)
+                await self.usage(c, pw_agents.planner_agent(items), o)
                 self.check_outcome(o, "Planner check")
                 report = c.run / f"planner-report-{pw_agents.slug(group)}.md"
                 report.write_text(o.text, encoding="utf-8")
@@ -227,7 +227,7 @@ class Engine:
                     o = await pw_agents.run_planner(c.run_id, c.run, items, c.stage,
                                                     message=pw_agents.planner_message(items) +
                                                     "\n\nYour last answer was not in the format. Answer again, format only.")
-                    await self.usage(c, "playwright-test-planner", o)
+                    await self.usage(c, pw_agents.planner_agent(items), o)
                     report.write_text(o.text, encoding="utf-8")
                     r = await self.script(c, "merge_app_map", c.rel, group)
                 if r.code == 1:

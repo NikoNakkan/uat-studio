@@ -28,6 +28,7 @@ AGENTS = {
     "uat-screen-reviewer": "Labels changed screens explained or unexplained",
     "uat-reporter": "One line of reasoning per sign-off unit",
     "uat-login-setup": "Writes tests/login.ts once per app",
+    "uat-canvas-specialist": "Maps Power Apps canvas apps by control name (planner check for canvas cases)",
 }
 DEFAULT_MODEL = "claude-sonnet-5-5"
 MODEL_CHOICES = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5-20251001"]
