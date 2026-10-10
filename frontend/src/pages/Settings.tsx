@@ -1,3 +1,4 @@
+import { ApiKeyBox } from '../components/ApiKey';
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
@@ -8,7 +9,6 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const s = useQuery({ queryKey: ['settings'], queryFn: () => api.get<any>('/api/settings') });
   const usage = useQuery({ queryKey: ['usage'], queryFn: () => api.get<any>('/api/usage') });
-  const [key, setKey] = useState('');
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [out, setOut] = useState('');
   const [job, setJob] = useState<string | null>(null);
@@ -47,21 +47,7 @@ export function SettingsPage() {
   return (
     <div className="mx-auto grid max-w-5xl gap-5">
       <h1 className="text-xl font-semibold">Settings</h1>
-      <Card title="Anthropic API key">
-        <p className="mb-3 text-sm text-muted">The agents run on your key. It is stored in {`~/.uat-studio/settings.json`} on this machine, never in a repository, and never shown again.
-          {d.api_key_from_env ? ' The key currently comes from the ANTHROPIC_API_KEY environment variable.' : ''}</p>
-        <div className="flex flex-wrap items-end gap-2">
-          <Field label={d.api_key_set ? `Key set (${d.api_key_hint})` : 'No key set'}>
-            <input type="password" autoComplete="off" disabled={!!saving || !!job} className={`${inputCls} w-80`} placeholder="sk-ant-…" value={key} onChange={e => setKey(e.target.value)} />
-          </Field>
-          <Button kind="primary" busy={saving === 'key'} disabled={!key || !!saving || !!job} onClick={() => { save('key', { api_key: key }, 'Key saved.'); setKey(''); }}>{saving === 'key' ? 'Saving…' : 'Save key'}</Button>
-          <Button busy={job === 'test'} disabled={!d.api_key_set || !!job || !!saving} onClick={() => run('test', '/api/settings/test')}>{job === 'test' ? 'Testing…' : 'Test the key'}</Button>
-          {d.api_key_set && !d.api_key_from_env && <Button kind="danger" busy={saving === 'clear'} disabled={!!saving || !!job} onClick={() => save('clear', { clear_api_key: true }, 'Key removed.')}>{saving === 'clear' ? 'Removing…' : 'Remove'}</Button>}
-        </div>
-        {msg && <div className="mt-2"><Notice tone={msg.ok ? 'good' : 'bad'}>{msg.text}</Notice></div>}
-        {job === 'test' && <div className="mt-3"><Loading label="Testing the key…" /></div>}
-        {shown === 'test' && out && <Pre className="mt-3 max-h-96 overflow-y-auto">{out}</Pre>}
-      </Card>
+      <Card title="Anthropic API key"><ApiKeyBox settings={d} /></Card>
 
       <Card title="Model per agent" actions={<Button kind="primary" busy={saving === 'models'} disabled={!!saving || !!job} onClick={() => save('models', { models: d.models, default_model: d.default_model, max_turns: d.max_turns, max_output_tokens: d.max_output_tokens, show_agent_browser: d.show_agent_browser })}>{saving === 'models' ? 'Saving…' : 'Save'}</Button>}>
         <p className="mb-3 text-sm text-muted">Each agent's model is recorded with its token use in every run (decision 32). Cheaper models for simple jobs are future feature F15.</p>

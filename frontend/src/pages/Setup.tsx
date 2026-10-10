@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Event, type Interaction } from '../api';
 import { Activity } from '../components/Activity';
+import { ApiKeyBox } from '../components/ApiKey';
 import { Stepper, type StepDef, type StepState } from '../components/Stepper';
 import { Button, Field, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, errorText, fail, inputCls, ok, useEvents, useTitle, type Msg } from '../ui';
 
@@ -50,7 +51,7 @@ export function SetupPage() {
     {
       id: 'key', title: 'Anthropic API key', state: state(!!settings.data?.api_key_set, settings.isPending),
       summary: settings.data?.api_key_set ? `Saved (ends ${settings.data.api_key_hint})` : 'The AI agents need it. It stays on this machine.',
-      body: <ApiKey settings={settings.data} onSaved={() => qc.invalidateQueries({ queryKey: ['settings'] })} />,
+      body: <ApiKeyBox settings={settings.data} />,
     },
     {
       id: 'machine', title: 'This machine', state: state(machineOk, check.isPending),
@@ -91,34 +92,6 @@ export function SetupPage() {
         </div>
         <Link to="/" className={`rounded-md px-3 py-1.5 text-sm font-medium ${allDone ? 'bg-accent text-accent-ink' : 'border border-line bg-surface text-muted'}`}>Go to test runs →</Link>
       </div>
-    </div>
-  );
-}
-
-function ApiKey({ settings, onSaved }: { settings: any; onSaved: () => void }) {
-  const [key, setKey] = useState('');
-  const [msg, setMsg] = useState<Msg>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const act = async (what: string, fn: () => Promise<void>) => {
-    setBusy(what); setMsg(null);
-    try { await fn(); } catch (e) { setMsg(fail(e)); } finally { setBusy(null); }
-  };
-  return (
-    <div className="grid gap-3">
-      <p className="text-sm text-muted">From console.anthropic.com → API Keys. It is saved in your home folder and never shown again, only its last characters.</p>
-      <div className="flex flex-wrap gap-2">
-        <input type="password" autoComplete="off" aria-label="API key" className={`${inputCls} max-w-md`} placeholder={settings?.api_key_set ? 'Saved. Paste a new one to replace it.' : 'sk-ant-…'}
-          value={key} onChange={e => setKey(e.target.value)} />
-        <Button kind="primary" busy={busy === 'save'} disabled={!key.trim() || !!busy} onClick={() => act('save', async () => {
-          await api.put('/api/settings', { api_key: key.trim() }); setKey(''); setMsg(ok('Saved.')); onSaved();
-        })}>{busy === 'save' ? 'Saving…' : 'Save'}</Button>
-        {settings?.api_key_set && <Button busy={busy === 'test'} disabled={!!busy} onClick={() => act('test', async () => {
-          const r = await api.post<{ ok: boolean; answer?: string; model?: string }>('/api/settings/test');
-          setMsg(r.ok ? ok(`The key works (${r.model}).`) : { text: 'The key was refused.', ok: false });
-        })}>{busy === 'test' ? 'Testing…' : 'Test the key'}</Button>}
-      </div>
-      <MsgNotice msg={msg} className="" />
-      <p className="text-xs text-muted">Models per agent and other options: <Link className="text-accent hover:underline" to="/settings">Settings</Link>.</p>
     </div>
   );
 }
