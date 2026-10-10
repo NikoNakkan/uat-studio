@@ -14,7 +14,8 @@ export function NeedsYou({ items, onSignoff }: { items: Interaction[]; onSignoff
   );
 }
 
-function InteractionCard({ item, onSignoff }: { item: Interaction; onSignoff?: () => void }) {
+/** One open question, confirmation or approval. `compact` is the version shown inside a conversation. */
+export function InteractionCard({ item, onSignoff, compact = false }: { item: Interaction; onSignoff?: () => void; compact?: boolean }) {
   const qc = useQueryClient();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -30,11 +31,13 @@ function InteractionCard({ item, onSignoff }: { item: Interaction; onSignoff?: (
   };
   const p = item.payload ?? {};
   return (
-    <div className="p-4 grid gap-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="font-semibold">{item.title}</h3>
-        <span className="text-xs text-muted">{kindLabel(item.kind)}{p.agent ? ` · ${p.agent}` : ''}</span>
-      </div>
+    <div className={compact ? 'grid gap-3 p-1' : 'grid gap-3 p-4'}>
+      {compact
+        ? <p className="text-sm font-medium">{item.title}: {kindLabel(item.kind).toLowerCase()}</p>
+        : <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-semibold">{item.title}</h3>
+            <span className="text-xs text-muted">{kindLabel(item.kind)}{p.agent ? ` · ${p.agent}` : ''}</span>
+          </div>}
       {item.kind === 'question' && <Questions p={p} pending={pending} send={send} />}
       {item.kind === 'change' && (
         <div className="grid gap-2 text-sm">
@@ -100,7 +103,7 @@ function Questions({ p, pending, send }: { p: any; pending: string | null; send:
     <form className="grid gap-3" onSubmit={e => { e.preventDefault(); send(answers); }}>
       {qs.map(q => (
         <div key={q.id} className="grid gap-1 text-sm">
-          <label htmlFor={`q-${q.id}`}><b className="tnum">{q.id}.</b> {q.test_id ? <span className="font-mono text-xs text-muted">{q.test_id} · </span> : null}{q.text}</label>
+          <label htmlFor={`q-${q.id}`}><b className="tnum">{q.id}.</b> {q.test_id && /\d/.test(q.test_id) ? <span className="font-mono text-xs text-muted">{q.test_id} · </span> : null}{q.text}</label>
           {q.recommended && <span className="text-xs text-muted">Recommended: {q.recommended}</span>}
           <input id={`q-${q.id}`} className={inputCls} disabled={!!pending} value={answers[q.id] ?? ''} onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })} />
         </div>

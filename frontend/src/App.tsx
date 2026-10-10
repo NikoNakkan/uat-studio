@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes } from 'react-router';
+import { Link, NavLink, Route, Routes } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Interaction } from './api';
 import { RunsPage } from './pages/Runs';
@@ -9,8 +9,8 @@ import { KnowledgePage } from './pages/Knowledge';
 import { SettingsPage } from './pages/Settings';
 
 const NAV = [
-  { to: '/', label: 'Runs', end: true },
-  { to: '/setup', label: 'Setup' },
+  { to: '/setup', label: '1  Set up' },
+  { to: '/', label: '2  Test runs', end: true },
   { to: '/switches', label: 'Feature switches' },
   { to: '/knowledge', label: 'Knowledge' },
   { to: '/settings', label: 'Settings' },
@@ -45,7 +45,10 @@ export function App() {
           {!health.isPending && health.data?.running?.length ? <Status ok label={`Running: ${health.data.running[0]}`} /> : null}
           {open.isPending
             ? <Status pending label="Checking for questions…" />
-            : open.data?.length ? <span className="rounded bg-warn/15 px-2 py-1 font-medium text-warn">{open.data.length} waiting for you</span> : null}
+            : open.data?.length
+              ? <Link to={open.data[0].channel === 'app' ? '/setup' : `/runs/${open.data[0].channel}`}
+                  className="rounded bg-warn/15 px-2 py-1 font-medium text-warn hover:bg-warn/25">{open.data.length} waiting for you →</Link>
+              : null}
         </div>
       </aside>
       <main id="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 outline-none md:px-8">

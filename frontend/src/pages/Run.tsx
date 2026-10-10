@@ -1,20 +1,43 @@
-import { useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, runFile, type RunDetail } from '../api';
+import { api, runFile, type RunDetail, type StageRow } from '../api';
 import { Activity } from '../components/Activity';
-import { NeedsYou } from '../components/NeedsYou';
 import { Signoff } from '../components/Signoff';
+import { Stepper, type StepDef, type StepState } from '../components/Stepper';
 import { VisualRegression } from '../components/VisualRegression';
-import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Shot, Table, Tabs, errorText, fail, inputCls, ok, useEvents, useTitle, type Msg } from '../ui';
+import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Shot, Table, errorText, fail, inputCls, ok, useEvents, useTitle, type Msg } from '../ui';
+
+/** What each stage is called and what it is for, in words a test author uses. */
+const STAGES: Record<string, { title: string; about: string }> = {
+  preflight: { title: 'Check the setup', about: 'Machine, app under test and login are ready.' },
+  intake: { title: 'Read the Excel', about: 'Reads every case and checks it follows the template.' },
+  clarify: { title: 'Clarify the cases', about: 'Asks you about anything vague, so no expected value is invented.' },
+  plan: { title: 'Write the plan', about: 'Turns the cases into Playwright plans and proves the accounts log in.' },
+  planner_check: { title: 'Check steps in the live app', about: 'Playwright tries each step in your app and records the real names on screen.' },
+  generate: { title: 'Write the tests', about: 'One Playwright test per new or changed case, written in the live app.' },
+  test_check: { title: 'Check the tests', about: 'Each test must match its Excel row exactly, and pass three times in a row.' },
+  run: { title: 'Run the tests', about: 'Plain Playwright, no AI: screenshots per step, a trace and the console.' },
+  console_review: { title: 'Console and network errors', about: 'New errors since the last run, explained.' },
+  failures: { title: 'Explain failures', about: 'Each failure is reproduced and called a bug, a broken test or the environment.' },
+  screens: { title: 'Compare screens', about: 'Screenshots against the last accepted run.' },
+  signoff: { title: 'Sign off', about: 'You decide each result, with the evidence next to it.' },
+};
+
+function stageState(s: StageRow, waiting: boolean): StepState {
+  if (!s.on) return 'off';
+  if (s.status === 'waiting_for_person' || waiting) return 'waiting';
+  if (s.status === 'running') return 'current';
+  if (s.status === 'failed') return 'failed';
+  if (s.status === 'done' || s.status === 'skipped') return 'done';
+  return 'todo';
+}
 
 export function RunPage() {
   const { runId = '' } = useParams();
   const qc = useQueryClient();
   const run = useQuery({ queryKey: ['run', runId], queryFn: () => api.get<RunDetail>(`/api/runs/${runId}`), refetchInterval: 5000 });
   const { events, live } = useEvents(`/api/runs/${runId}/events`, [['run', runId], ['interactions']]);
-  const [tab, setTab] = useState('activity');
-  const [stage, setStage] = useState<string | undefined>();
   const [visualFocus, setVisualFocus] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [acting, setActing] = useState<string | null>(null);
@@ -34,16 +57,48 @@ export function RunPage() {
   const prog = d.progress ?? {};
   const tests = prog.tests ?? {};
   const failedStage = r.stages.find(s => s.status === 'failed' || s.status === 'waiting_for_person');
-  const tabs = [
-    { id: 'activity', label: 'Activity' }, { id: 'cases', label: 'Cases' }, { id: 'changes', label: 'Changes & questions' },
-    { id: 'tests', label: 'Tests' }, { id: 'results', label: 'Results' }, { id: 'failures', label: 'Failures' },
-    { id: 'console', label: 'Console' }, { id: 'visual', label: 'Visual regression', badge: d.screens?.flagged?.length ?? 0 }, { id: 'signoff', label: 'Sign-off', badge: r.pending.some(p => p.kind === 'signoff') ? 1 : 0 },
-    { id: 'usage', label: 'Usage' }, { id: 'files', label: 'Files' },
-  ];
+  // Questions carry no stage; they belong to the stage that is running (stages run one after another).
+  const activeId = r.stages.find(s => s.status === 'running' || s.status === 'waiting_for_person')?.id;
+
+  const output = (id: string): ReactNode => {
+    switch (id) {
+      case 'intake': return d.cases ? <Cases d={d} /> : null;
+      case 'clarify': return d.cases ? <Changes r={r} /> : null;
+      case 'planner_check': return r.texts['mismatches.md'] ? <Card title="Mismatches"><Pre>{r.texts['mismatches.md']}</Pre></Card> : null;
+      case 'test_check': return d.test_check ? <TestsTab d={d} /> : null;
+      case 'run': return Object.keys(tests).length ? <Results runId={runId} d={d} tests={tests} onVisual={id => setVisualFocus(id)} /> : null;
+      case 'console_review': return d.console_new || r.texts['console.md'] ? <Console r={r} /> : null;
+      case 'failures': return d.diagnoses ? <Failures r={r} /> : null;
+      case 'screens': return d.screens ? <>
+        {visualFocus && <p className="text-sm">Showing {visualFocus} only · <button className="text-accent hover:underline" onClick={() => setVisualFocus(null)}>show every test</button></p>}
+        <VisualRegression runId={runId} focus={visualFocus} />
+      </> : null;
+      case 'signoff': return d.evidence_check ? <Signoff runId={runId} r={r} /> : null;
+      default: return null;
+    }
+  };
+
+  const steps: StepDef[] = r.stages.map(s => {
+    const meta = STAGES[s.id] ?? { title: s.id.replace(/_/g, ' '), about: s.does };
+    const state = stageState(s, s.id === activeId && r.pending.length > 0);
+    const out = output(s.id);
+    const chat = <Activity events={events} stage={s.id} live={live} />;
+    const active = state === 'current' || state === 'waiting' || state === 'failed';
+    return {
+      id: s.id, title: meta.title, state,
+      summary: state === 'waiting' ? 'Waiting for you. Answer in the conversation below.' : s.note || meta.about,
+      // While a stage works, its conversation comes first; once done, what it produced comes first.
+      body: active || !out
+        ? <>{chat}{out}</>
+        : <>{out}<details className="text-sm"><summary className="cursor-pointer text-muted">Conversation and steps of this stage</summary><div className="mt-2">{chat}</div></details></>,
+    };
+  });
+
   return (
-    <div className="mx-auto grid max-w-7xl gap-4">
+    <div className="mx-auto grid max-w-5xl gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <Link to="/" className="text-sm text-accent hover:underline">← Test runs</Link>
           <h1 className="font-mono text-lg font-semibold">{r.id}</h1>
           <p className="text-sm text-muted">{prog.excel} · strictness {prog.strictness}{prog.excel_sha256 ? ` · SHA-256 ${String(prog.excel_sha256).slice(0, 12)}…` : ''}</p>
         </div>
@@ -51,47 +106,18 @@ export function RunPage() {
           {r.running
             ? <Button kind="danger" busy={acting === 'stop'} disabled={!!acting} onClick={() => act('stop', () => api.post(`/api/runs/${runId}/stop`))}>{acting === 'stop' ? 'Stopping…' : 'Stop'}</Button>
             : <Button kind="primary" busy={acting === 'start'} disabled={!!acting} onClick={() => act('start', () => api.post(`/api/runs/${runId}/start`))}>{acting === 'start' ? 'Starting…' : prog.stages && Object.keys(prog.stages).length ? 'Resume' : 'Start'}</Button>}
-          {!r.running && failedStage && <Button busy={acting === 'retry'} disabled={!!acting} onClick={() => act('retry', () => api.post(`/api/runs/${runId}/retry`, { stage: failedStage.id }))}>{acting === 'retry' ? 'Retrying…' : `Retry ${failedStage.id}`}</Button>}
+          {!r.running && failedStage && <Button busy={acting === 'retry'} disabled={!!acting} onClick={() => act('retry', () => api.post(`/api/runs/${runId}/retry`, { stage: failedStage.id }))}>{acting === 'retry' ? 'Retrying…' : `Retry "${STAGES[failedStage.id]?.title ?? failedStage.id}"`}</Button>}
           {d.cases && <a className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2" href={`/api/runs/${runId}/clarified.xlsx`}
             title="The cases as clarified, in the template: paste them back into your Excel">Clarified Excel</a>}
           {r.results_ready && <a className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
         </div>
       </div>
       {error && <Notice>{error}</Notice>}
-
-      <ol className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
-        {r.stages.map((s, n) => (
-          <li key={s.id}>
-            <button type="button" aria-pressed={stage === s.id} onClick={() => { setStage(stage === s.id ? undefined : s.id); setTab('activity'); }}
-              className={`w-full rounded-md border px-2.5 py-2 text-left ${stage === s.id ? 'border-accent ring-1 ring-accent' : 'border-line'} ${s.on ? 'bg-surface' : 'bg-surface-2 opacity-70'}`}
-              title={s.does || s.note}>
-              <div className="flex items-center justify-between gap-1"><span className="text-xs text-muted tnum">{n + 1}</span><Pill value={s.on ? s.status : 'off'} /></div>
-              <div className="mt-1 truncate text-sm font-medium">{s.id.replace('_', ' ')}</div>
-              {s.note && <div className="truncate text-xs text-muted">{s.note}</div>}
-            </button>
-          </li>
-        ))}
-      </ol>
-
-      <NeedsYou items={r.pending} onSignoff={() => setTab('signoff')} />
-
-      <div className="sticky top-0 z-10 -mx-4 bg-bg/95 px-4 py-1 backdrop-blur md:-mx-8 md:px-8">
-        <Tabs tabs={tabs} current={tab} onChange={setTab} />
-      </div>
-      {tab === 'activity' && <Activity events={events} stage={stage} live={live} />}
-      {tab === 'cases' && <Cases d={d} />}
-      {tab === 'changes' && <Changes r={r} />}
-      {tab === 'tests' && <TestsTab d={d} />}
-      {tab === 'results' && <Results runId={runId} d={d} tests={tests} onVisual={id => { setVisualFocus(id); setTab('visual'); }} />}
-      {tab === 'failures' && <Failures r={r} />}
-      {tab === 'console' && <Console r={r} />}
-      {tab === 'visual' && <>
-        {visualFocus && <p className="text-sm">Showing {visualFocus} only · <button className="text-accent hover:underline" onClick={() => setVisualFocus(null)}>show every test</button></p>}
-        <VisualRegression runId={runId} focus={visualFocus} />
-      </>}
-      {tab === 'signoff' && <Signoff runId={runId} r={r} />}
-      {tab === 'usage' && <Usage d={d} />}
-      {tab === 'files' && <Files runId={runId} />}
+      <Stepper label="Stages of this run" steps={steps} />
+      <details className="rounded-lg border border-line bg-surface p-3 text-sm">
+        <summary className="cursor-pointer font-medium">More: model usage and every file of this run</summary>
+        <div className="mt-3 grid gap-4"><Usage d={d} /><Files runId={runId} /></div>
+      </details>
     </div>
   );
 }
