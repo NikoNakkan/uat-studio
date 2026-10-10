@@ -10,7 +10,7 @@ import pytest
 REAL_KIT = Path(__file__).resolve().parents[3] / "agentic-testing-kit"
 TMP = Path(tempfile.mkdtemp(prefix="uatstudio-"))
 KIT = TMP / "kit"
-shutil.copytree(REAL_KIT, KIT, ignore=shutil.ignore_patterns("node_modules", "__pycache__", ".pytest_cache", "current"))
+shutil.copytree(REAL_KIT, KIT, ignore=shutil.ignore_patterns("node_modules", "__pycache__", ".pytest_cache", "current", ".env", "key.txt"))
 for p in (KIT / "runs").iterdir():
     if p.is_dir():
         shutil.rmtree(p)

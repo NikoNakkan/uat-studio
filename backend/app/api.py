@@ -499,21 +499,13 @@ def _env_path() -> Path:
 
 
 def _env_values() -> dict[str, str]:
-    out = {}
-    p = _env_path()
-    if p.exists():
-        for line in p.read_text(encoding="utf-8").splitlines():
-            m = re.match(r"^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$", line)
-            if m:
-                out[m.group(1)] = m.group(2).strip('"').strip("'")
-    return out
+    return kit.env_values()
 
 
 @router.get("/env")
 def get_env():
     values = _env_values()
-    accounts = [{"name": a, "user_set": bool(values.get(f"{a}_USER")), "password_set": bool(values.get(f"{a}_PASSWORD"))}
-                for a in kit.env_example_accounts()]
+    accounts = kit.accounts_overview(kit.latest_cases()[1])
     return {"env_exists": _env_path().exists(), "start_page": values.get("START_PAGE", ""), "accounts": accounts,
             "allowed_origins": kit.guardrails().get("allowed_origins", [])}
 
@@ -583,11 +575,22 @@ login_task: dict[str, asyncio.Task] = {}
 
 
 @router.post("/setup/login")
-async def start_login_setup():
+async def start_login_setup(file: UploadFile | None = File(None)):
+    """Starts the login agent. An Excel of test cases (optional) tells it the accounts, the start page and
+    what a logged-in user sees; without one it uses the newest cases Studio has read."""
     from .pw_agents import run_login_setup
     t = login_task.get("job")
     if t and not t.done():
         raise HTTPException(409, "Login setup is already running.")
+    if file is not None and file.filename:
+        if not file.filename.lower().endswith(".xlsx"):
+            raise HTTPException(400, "The test cases must be an .xlsx file in the template.")
+        setup = kit.runs_dir() / "setup"
+        setup.mkdir(parents=True, exist_ok=True)
+        (setup / "requirements.xlsx").write_bytes(await file.read())
+        r = await kit.run_script("read_excel", "runs/setup/requirements.xlsx", "runs/setup/cases.json")
+        if r.code != 0:
+            raise HTTPException(400, f"Could not read the Excel:\n{r.output}")
 
     async def job():
         try:

@@ -164,6 +164,7 @@ function Login({ events, live, running, written }: { events: Event[]; live: any;
   const [job, setJob] = useState<string | null>(null);
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const lock = useRef(false);
   const go = async (label: string, fn: () => Promise<any>) => {
     if (lock.current) return;
@@ -174,11 +175,16 @@ function Login({ events, live, running, written }: { events: Event[]; live: any;
   };
   return (
     <div className="grid gap-3">
-      <p className="text-sm text-muted">Login is code, not AI. The login agent asks a few questions, looks at your login page with Playwright,
-        writes tests/login.ts and proves every account logs in. From then on every test logs in through that code. The agent never sees a password.</p>
+      <p className="text-sm text-muted">Login is code, not AI. The login agent looks at your login page with Playwright and reads your test cases
+        (which accounts log in, and what a logged-in user sees), asks only what neither tells it, writes tests/login.ts and proves every account
+        logs in. From then on every test logs in through that code. The agent never sees a password.</p>
+      <Field label="Your test cases" hint="The Excel you will test with. Without it, the agent uses the newest Excel you uploaded for a run.">
+        <input type="file" accept=".xlsx" disabled={running || !!job} onChange={e => setFile(e.target.files?.[0] ?? null)}
+          className={`${inputCls} max-w-md file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-2 file:py-1 file:text-sm file:font-medium file:text-ink`} />
+      </Field>
       <div className="flex flex-wrap gap-2">
         <Button kind="primary" busy={job === 'setup' || running} disabled={!!job || running}
-          onClick={() => go('setup', () => api.post('/api/setup/login'))}>
+          onClick={() => go('setup', () => { const form = new FormData(); if (file) form.append('file', file); return api.post('/api/setup/login', form); })}>
           {running ? 'Login agent working…' : job === 'setup' ? 'Starting…' : written ? 'Set up login again' : 'Set up login with AI'}
         </Button>
         <Button busy={job === 'check'} disabled={!!job || running} onClick={() => go('check', () => api.post('/api/setup/check-login'))}>

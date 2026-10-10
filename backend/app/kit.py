@@ -194,3 +194,45 @@ def env_example_accounts() -> list[str]:
     if not p.exists():
         return []
     return re.findall(r"^([A-Z0-9_]+)_USER=", p.read_text(encoding="utf-8"), re.M)
+
+
+def env_values() -> dict[str, str]:
+    """The private .env file as a dict. Only the app reads it; agents never see these values."""
+    import re
+    out = {}
+    p = KIT_DIR / ".env"
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$", line)
+            if m:
+                out[m.group(1)] = m.group(2).strip('"').strip("'")
+    return out
+
+
+def account_key(name: str) -> str:
+    """'Employee test account' -> 'EMPLOYEE_TEST_ACCOUNT' (same rule as the kit's scripts/common.py)."""
+    import re
+    return re.sub(r"[^A-Z0-9]+", "_", str(name or "").upper()).strip("_")
+
+
+def latest_cases() -> tuple[str, list[dict]]:
+    """The newest test cases Studio has read: from the newest run, else the Excel given to login setup."""
+    for run_id in list_runs():
+        cases = read_json(runs_dir() / run_id / "cases.json")
+        if cases:
+            return f"run {run_id}", cases
+    cases = read_json(runs_dir() / "setup" / "cases.json")
+    return ("the Excel given to login setup", cases) if cases else ("", [])
+
+
+def accounts_overview(cases: list[dict]) -> list[dict]:
+    """Every test account Studio knows of: entered on the Setup page or named in the cases' "Login as".
+    Says whether its values are filled in (never the values) and which cases use it."""
+    values = env_values()
+    used: dict[str, list[str]] = {}
+    for c in cases:
+        if c.get("login_as"):
+            used.setdefault(account_key(c["login_as"]), []).append(c.get("test_id", "?"))
+    names = list(dict.fromkeys([*env_example_accounts(), *(k[:-5] for k in values if k.endswith("_USER")), *used]))
+    return [{"name": n, "user_set": bool(values.get(f"{n}_USER")), "password_set": bool(values.get(f"{n}_PASSWORD")),
+             "used_by": used.get(n, [])} for n in names]
