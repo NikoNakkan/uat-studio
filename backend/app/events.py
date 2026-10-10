@@ -28,6 +28,10 @@ class EventBus:
             return STATE_DIR / "app-events.jsonl"
         return kit.run_path(channel) / "studio-events.jsonl"
 
+    def forget(self, channel: str) -> None:
+        """A deleted run: drop its counter so a run of the same name starts again at 1."""
+        self._seq.pop(channel, None)
+
     def _next_seq(self, channel: str) -> int:
         if channel not in self._seq:
             n = 0

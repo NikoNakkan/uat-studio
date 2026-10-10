@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, type RunSummary } from '../api';
+import { RunActions } from '../components/RunActions';
 import { Stepper, type StepDef } from '../components/Stepper';
 import { Button, Empty, Field, Notice, Pill, QueryGate, Table, errorText, inputCls, useTitle } from '../ui';
 
@@ -104,7 +105,7 @@ function AllRuns({ runs }: { runs: { isPending: boolean; isError: boolean; error
   return (
     <QueryGate pending={runs.isPending} error={runs.isError ? runs.error : null} label="Loading runs…">
       {runs.data?.length ? (
-        <Table head={['Run', 'Excel', 'Stages', 'Tests passed', 'State']} rows={runs.data.map(r => [
+        <Table head={['Run', 'Excel', 'Stages', 'Tests passed', 'State', '']} rows={runs.data.map(r => [
           <Link className="font-mono text-accent hover:underline" to={`/runs/${r.id}`}>{r.id}</Link>,
           r.excel,
           <span className="tnum">{r.stages_done}/{r.stages_total}{r.current ? <span className="text-muted"> · {r.current}</span> : null}</span>,
@@ -115,6 +116,7 @@ function AllRuns({ runs }: { runs: { isPending: boolean; isError: boolean; error
             {r.sealed && <Pill value="done" label="signed off" />}
             {r.results && <a className="text-xs text-accent hover:underline" href={`/api/runs/${r.id}/results.xlsx`}>results.xlsx</a>}
           </div>,
+          <RunActions runId={r.id} running={r.running} sealed={r.sealed} size="small" />,
         ])} />
       ) : <Empty>No runs yet. Upload an Excel in the step above.</Empty>}
     </QueryGate>

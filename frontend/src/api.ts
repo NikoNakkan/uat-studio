@@ -19,6 +19,7 @@ export const api = {
   get: <T,>(url: string) => call<T>('GET', url),
   post: <T,>(url: string, body?: unknown) => call<T>('POST', url, body ?? {}),
   put: <T,>(url: string, body?: unknown) => call<T>('PUT', url, body ?? {}),
+  del: <T,>(url: string) => call<T>('DELETE', url),
 };
 
 export type Interaction = { id: string; channel: string; kind: string; title: string; payload: any; created: number };

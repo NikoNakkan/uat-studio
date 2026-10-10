@@ -177,6 +177,30 @@ def stop_run(run_id: str):
     return {"running": False}
 
 
+@router.delete("/runs/{run_id}")
+async def delete_run(run_id: str, signed_off: bool = False):
+    """Stops the run if it is running, then removes its folder: evidence, screenshots, record. The tests it
+    generated stay in tests/, because later runs reuse them. A signed-off run needs signed_off=true."""
+    try:
+        p = kit.run_path(run_id)
+    except ValueError:
+        raise HTTPException(400, "Not a run.") from None
+    if not p.exists():
+        raise HTTPException(404, "No such run.")
+    if (p / "manifest.json").exists() and not signed_off:
+        raise HTTPException(409, "This run is signed off: its record is sealed evidence. Confirm deleting a signed-off run.")
+    if not await engine.stop_and_wait(run_id):
+        raise HTTPException(409, "The run is still stopping. Try again in a moment.")
+    try:
+        await asyncio.to_thread(shutil.rmtree, p)
+    except OSError as e:
+        raise HTTPException(409, "Some files are still in use (a browser or test may still be closing). "
+                                 f"Try again in a moment. ({e})") from None
+    engine.tasks.pop(run_id, None)
+    bus.forget(run_id)
+    return {"deleted": run_id}
+
+
 class RetryIn(BaseModel):
     stage: str
 
@@ -603,6 +627,18 @@ async def start_login_setup(file: UploadFile | None = File(None)):
 
     login_task["job"] = asyncio.create_task(job())
     return {"started": True}
+
+
+@router.post("/setup/login/stop")
+async def stop_login_setup():
+    """Stops the login agent, and closes its open question."""
+    interactions.cancel_channel("app")
+    t = login_task.get("job")
+    if t and not t.done():
+        t.cancel()
+        await asyncio.wait({t}, timeout=10)
+        bus.emit("app", "note", stage="setup-login", text="Login setup stopped.")
+    return {"running": False}
 
 
 @router.post("/setup/check-login")

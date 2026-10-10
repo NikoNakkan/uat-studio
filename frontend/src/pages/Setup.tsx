@@ -23,7 +23,7 @@ function loginRunning(events: Event[]) {
   for (const e of events) {
     if (e.type === 'agent_start' && e.agent === 'uat-login-setup') running = true;
     else if ((e.type === 'agent_end' && e.agent === 'uat-login-setup') || (e.type === 'agent_error' && e.stage === 'setup-login')
-      || (e.type === 'note' && e.text?.startsWith('Login setup finished'))) running = false;
+      || (e.type === 'note' && /^Login setup (finished|stopped)/.test(e.text ?? ''))) running = false;
   }
   return running;
 }
@@ -160,6 +160,8 @@ function Login({ events, live, running, written }: { events: Event[]; live: any;
           onClick={() => go('setup', () => { const form = new FormData(); if (file) form.append('file', file); return api.post('/api/setup/login', form); })}>
           {running ? 'Login agent working…' : job === 'setup' ? 'Starting…' : written ? 'Set up login again' : 'Set up login with AI'}
         </Button>
+        {running && <Button kind="danger" busy={job === 'stop'} disabled={job === 'stop'} onClick={() => go('stop', () => api.post('/api/setup/login/stop'))}>
+          {job === 'stop' ? 'Stopping…' : 'Stop'}</Button>}
         <Button busy={job === 'check'} disabled={!!job || running} onClick={() => go('check', () => api.post('/api/setup/check-login'))}>
           {job === 'check' ? 'Checking every account…' : 'Check every account logs in'}</Button>
       </div>

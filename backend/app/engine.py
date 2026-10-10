@@ -76,6 +76,14 @@ class Engine:
         if t and not t.done():
             t.cancel()
 
+    async def stop_and_wait(self, run_id: str, timeout: float = 15) -> bool:
+        """Stops the run and waits until its task has ended. False if it is still ending after `timeout`."""
+        self.stop(run_id)
+        t = self.tasks.get(run_id)
+        if t and not t.done():
+            await asyncio.wait({t}, timeout=timeout)
+        return not self.is_running(run_id)
+
     # ---------------- helpers ----------------
 
     async def script(self, c: Ctx, name: str, *args: str, timeout: float | None = 900, stream: bool = False):

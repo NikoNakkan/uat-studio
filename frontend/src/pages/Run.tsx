@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, runFile, type RunDetail, type StageRow } from '../api';
 import { Activity } from '../components/Activity';
+import { RunActions } from '../components/RunActions';
 import { Signoff } from '../components/Signoff';
 import { Stepper, type StepDef, type StepState } from '../components/Stepper';
 import { VisualRegression } from '../components/VisualRegression';
@@ -36,6 +37,7 @@ function stageState(s: StageRow, waiting: boolean): StepState {
 export function RunPage() {
   const { runId = '' } = useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const run = useQuery({ queryKey: ['run', runId], queryFn: () => api.get<RunDetail>(`/api/runs/${runId}`), refetchInterval: 5000 });
   const { events, live } = useEvents(`/api/runs/${runId}/events`, [['run', runId], ['interactions']]);
   const [visualFocus, setVisualFocus] = useState<string | null>(null);
@@ -103,9 +105,8 @@ export function RunPage() {
           <p className="text-sm text-muted">{prog.excel} · strictness {prog.strictness}{prog.excel_sha256 ? ` · SHA-256 ${String(prog.excel_sha256).slice(0, 12)}…` : ''}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {r.running
-            ? <Button kind="danger" busy={acting === 'stop'} disabled={!!acting} onClick={() => act('stop', () => api.post(`/api/runs/${runId}/stop`))}>{acting === 'stop' ? 'Stopping…' : 'Stop'}</Button>
-            : <Button kind="primary" busy={acting === 'start'} disabled={!!acting} onClick={() => act('start', () => api.post(`/api/runs/${runId}/start`))}>{acting === 'start' ? 'Starting…' : prog.stages && Object.keys(prog.stages).length ? 'Resume' : 'Start'}</Button>}
+          {!r.running && <Button kind="primary" busy={acting === 'start'} disabled={!!acting} onClick={() => act('start', () => api.post(`/api/runs/${runId}/start`))}>{acting === 'start' ? 'Starting…' : prog.stages && Object.keys(prog.stages).length ? 'Resume' : 'Start'}</Button>}
+          <RunActions runId={runId} running={r.running} sealed={!!d.manifest} onDeleted={() => navigate('/')} />
           {!r.running && failedStage && <Button busy={acting === 'retry'} disabled={!!acting} onClick={() => act('retry', () => api.post(`/api/runs/${runId}/retry`, { stage: failedStage.id }))}>{acting === 'retry' ? 'Retrying…' : `Retry "${STAGES[failedStage.id]?.title ?? failedStage.id}"`}</Button>}
           {d.cases && <a className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2" href={`/api/runs/${runId}/clarified.xlsx`}
             title="The cases as clarified, in the template: paste them back into your Excel">Clarified Excel</a>}
