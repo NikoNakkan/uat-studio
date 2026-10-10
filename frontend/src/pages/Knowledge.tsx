@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { Button, Card, Empty, Loading, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, inputCls, useTitle } from '../ui';
+import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, fail, inputCls, ok, useTitle, type Msg } from '../ui';
 
 const TAB_LABEL: Record<string, string> = {
   glossary: 'Glossary', appmap: 'App map', config: 'Rules', tests: 'Test files', agents: 'Agents', skills: 'Skills',
@@ -31,15 +31,15 @@ export function KnowledgePage() {
 function Glossary() {
   const q = useQuery({ queryKey: ['glossary'], queryFn: () => api.get<{ text: string }>('/api/kit/glossary') });
   const [text, setText] = useState<string | null>(null);
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState<Msg>(null);
   const [saving, setSaving] = useState(false);
   const lock = useRef(false);
   const save = async () => {
     if (lock.current || text === null) return;
     lock.current = true;
-    setSaving(true); setMsg('');
-    try { await api.put('/api/kit/glossary', { text }); setMsg('Saved.'); setText(null); await q.refetch(); }
-    catch (e) { setMsg(errorText(e)); }
+    setSaving(true); setMsg(null);
+    try { await api.put('/api/kit/glossary', { text }); setMsg(ok('Saved.')); setText(null); await q.refetch(); }
+    catch (e) { setMsg(fail(e)); }
     finally { lock.current = false; setSaving(false); }
   };
   return (
@@ -48,7 +48,7 @@ function Glossary() {
       <QueryGate pending={q.isPending} error={q.isError ? q.error : null} label="Loading the glossary…">
         <textarea aria-label="Glossary" className={`${inputCls} font-mono`} rows={20} disabled={saving} value={text ?? q.data?.text ?? ''} onChange={e => setText(e.target.value)} />
         {text !== null && <p className="mt-2 text-xs text-warn">Unsaved changes</p>}
-        {msg && <div className="mt-2"><Notice tone={msg === 'Saved.' ? 'good' : 'bad'}>{msg}</Notice></div>}
+        <MsgNotice msg={msg} />
       </QueryGate>
     </Card>
   );
@@ -77,21 +77,21 @@ function Config() {
   const [name, setName] = useState('guardrails.yaml');
   const file = useQuery({ queryKey: ['config', name], queryFn: () => api.get<{ text: string }>(`/api/kit/config/${name}`) });
   const [text, setText] = useState<string | null>(null);
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState<Msg>(null);
   const [saving, setSaving] = useState(false);
   const lock = useRef(false);
   const qc = useQueryClient();
-  useEffect(() => { setText(null); setMsg(''); }, [name]);
+  useEffect(() => { setText(null); setMsg(null); }, [name]);
   const save = async () => {
     if (lock.current || text === null) return;
     lock.current = true;
-    setSaving(true); setMsg('');
+    setSaving(true); setMsg(null);
     try {
       await api.put(`/api/kit/config/${name}`, { text });
-      setMsg('Saved. Run the kit self-tests on the Settings page after changing rules.');
+      setMsg(ok('Saved. Run the kit self-tests on the Settings page after changing rules.'));
       setText(null);
       qc.invalidateQueries({ queryKey: ['config', name] });
-    } catch (e) { setMsg(errorText(e)); }
+    } catch (e) { setMsg(fail(e)); }
     finally { lock.current = false; setSaving(false); }
   };
   return (
@@ -108,7 +108,7 @@ function Config() {
         <QueryGate pending={file.isPending} error={file.isError ? file.error : null} label={`Loading ${name}…`}>
           <textarea aria-label={name} className={`${inputCls} font-mono text-xs`} rows={28} disabled={saving} value={text ?? file.data?.text ?? ''} onChange={e => setText(e.target.value)} />
           {text !== null && <p className="mt-2 text-xs text-warn">Unsaved changes</p>}
-          {msg && <div className="mt-2"><Notice tone={msg.startsWith('Saved.') ? 'good' : 'bad'}>{msg}</Notice></div>}
+          <MsgNotice msg={msg} />
         </QueryGate>
       </Card>
     </div>

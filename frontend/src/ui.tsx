@@ -25,6 +25,34 @@ export function Notice({ tone = 'bad', children }: { tone?: 'bad' | 'good' | 'mu
   );
 }
 
+/** An outcome message: whether it is good news is decided where it is created, never by matching its text. */
+export type Msg = { text: string; ok: boolean } | null;
+export const ok = (text: string): Msg => ({ text, ok: true });
+export const fail = (e: unknown): Msg => ({ text: errorText(e), ok: false });
+
+export function MsgNotice({ msg, className = 'mt-2' }: { msg: Msg; className?: string }) {
+  if (!msg) return null;
+  return <div className={className}><Notice tone={msg.ok ? 'good' : 'bad'}>{msg.text}</Notice></div>;
+}
+
+/** One screenshot that shows a placeholder while it loads and says so when it cannot be loaded. Opens full size. */
+export function Shot({ src, caption, mono = false }: { src: string; caption: string; mono?: boolean }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  return (
+    <figure className="grid min-w-0 gap-1">
+      <a href={src} target="_blank" rel="noreferrer" className="relative block">
+        {state === 'loading' && <div className="h-40 animate-pulse rounded bg-surface-2" role="status" aria-label={`Loading ${caption}`} />}
+        {state === 'error' && <p className="rounded border border-line p-3 text-xs text-muted">This screenshot could not be loaded.</p>}
+        <img src={src} alt={caption} loading="lazy"
+          ref={img => { if (img?.complete && img.naturalWidth > 0) setState('ready'); }}
+          onLoad={() => setState('ready')} onError={() => setState('error')}
+          className={`w-full rounded border border-line ${state === 'ready' ? '' : 'absolute h-px w-px opacity-0'}`} />
+      </a>
+      <figcaption className={`text-xs text-muted ${mono ? 'font-mono' : ''}`}>{caption}</figcaption>
+    </figure>
+  );
+}
+
 /** Initial load and hard failures. A background refetch keeps the children on screen. */
 export function QueryGate({ pending, error, label = 'Loading…', children }: {
   pending: boolean; error?: unknown; label?: string; children: ReactNode;
@@ -146,6 +174,7 @@ export function useEvents(channelUrl: string | null, refresh: unknown[][] = []) 
   useEffect(() => {
     if (!channelUrl) return;
     setEvents([]);
+    let lastSeq = 0;
     setLive('connecting');
     let dead = false;
     const es = new EventSource(channelUrl);
@@ -153,6 +182,9 @@ export function useEvents(channelUrl: string | null, refresh: unknown[][] = []) 
     es.onerror = () => { if (!dead) setLive('reconnecting'); };
     es.onmessage = msg => {
       const e = JSON.parse(msg.data) as Event;
+      // After a reconnect the server resumes from Last-Event-ID; anything already shown is still skipped.
+      if (e.seq <= lastSeq) return;
+      lastSeq = e.seq;
       setEvents(prev => (prev.length > 3000 ? [...prev.slice(-2500), e] : [...prev, e]));
       if (['stage', 'run', 'waiting', 'answered', 'script_end', 'agent_end', 'finding'].includes(e.type)) {
         for (const key of refreshRef.current) qc.invalidateQueries({ queryKey: key });

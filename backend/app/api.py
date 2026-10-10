@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
@@ -194,16 +194,24 @@ async def retry_stage(run_id: str, body: RetryIn):
 
 
 @router.get("/runs/{run_id}/events", response_class=EventSourceResponse)
-async def run_events(run_id: str, after: int = 0):
+async def run_events(run_id: str, after: int = 0, last_event_id: str | None = Header(None)):
     _run_or_404(run_id)
-    async for e in _stream(run_id, after):
+    async for e in _stream(run_id, _resume_from(after, last_event_id)):
         yield e
 
 
 @router.get("/events/app", response_class=EventSourceResponse)
-async def app_events(after: int = 0):
-    async for e in _stream("app", after):
+async def app_events(after: int = 0, last_event_id: str | None = Header(None)):
+    async for e in _stream("app", _resume_from(after, last_event_id)):
         yield e
+
+
+def _resume_from(after: int, last_event_id: str | None) -> int:
+    """A browser that reconnects sends Last-Event-ID: continue after it instead of replaying the whole history."""
+    try:
+        return max(after, int(last_event_id or 0))
+    except ValueError:
+        return after
 
 
 async def _stream(channel: str, after: int):

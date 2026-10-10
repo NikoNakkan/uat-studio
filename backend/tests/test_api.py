@@ -149,3 +149,11 @@ def test_open_trace_refuses_anything_but_a_trace_of_the_run(client):
     run_id = _latest_run(client)
     assert client.post(f"/api/runs/{run_id}/open-trace", json={"path": "../../.env"}).status_code == 400
     assert client.post(f"/api/runs/{run_id}/open-trace", json={"path": "cases.json"}).status_code == 400
+
+
+def test_a_reconnecting_browser_resumes_after_its_last_event():
+    from app.api import _resume_from
+    assert _resume_from(0, None) == 0
+    assert _resume_from(0, "42") == 42                   # Last-Event-ID wins over a stale ?after=0
+    assert _resume_from(50, "42") == 50
+    assert _resume_from(7, "not-a-number") == 7

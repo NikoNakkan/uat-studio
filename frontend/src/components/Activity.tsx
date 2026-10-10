@@ -28,7 +28,12 @@ export function Activity({ events, stage, live = 'live' }: { events: Event[]; st
           {liveLabel}
         </span>
       </div>
-      <div ref={box} onWheel={e => { if (e.deltaY < 0) setFollow(false); }}
+      {/* Any way of scrolling (wheel, scrollbar, keyboard) pauses following; back at the bottom resumes it. */}
+      <div ref={box} onScroll={e => {
+        const el = e.currentTarget;
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+        if (atBottom !== follow) setFollow(atBottom);
+      }}
         className="max-h-[60vh] overflow-y-auto rounded-md border border-line bg-surface-2/50 p-2 font-mono text-xs leading-relaxed">
         {shown.length === 0 && (
           <p className="p-2 font-sans text-sm text-muted" role="status">

@@ -6,7 +6,7 @@ import { Activity } from '../components/Activity';
 import { NeedsYou } from '../components/NeedsYou';
 import { Signoff } from '../components/Signoff';
 import { VisualRegression } from '../components/VisualRegression';
-import { Button, Card, Empty, Loading, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, inputCls, useEvents, useTitle } from '../ui';
+import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Shot, Table, Tabs, errorText, fail, inputCls, ok, useEvents, useTitle, type Msg } from '../ui';
 
 export function RunPage() {
   const { runId = '' } = useParams();
@@ -165,7 +165,7 @@ function TestsTab({ d }: { d: Record<string, any> }) {
 
 function Results({ runId, d, tests, onVisual }: { runId: string; d: Record<string, any>; tests: Record<string, any>; onVisual: (id: string) => void }) {
   const screensOf = (id: string) => (d.screens?.pairs ?? d.screens?.flagged ?? []).filter((p: any) => p.test_id === id);
-  const [traceMsg, setTraceMsg] = useState('');
+  const [traceMsg, setTraceMsg] = useState<Msg>(null);
   const [opening, setOpening] = useState<string | null>(null);
   const check = d.evidence_check?.tests ?? {};
   const [pick, setPick] = useState<string | null>(null);
@@ -192,20 +192,20 @@ function Results({ runId, d, tests, onVisual }: { runId: string; d: Record<strin
           <QueryGate pending={files.isPending} error={files.isError ? files.error : null} label="Loading evidence…">
             {mine.some(f => f.endsWith('.png')) ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {mine.filter(f => f.endsWith('.png')).map(f => <Shot key={f} src={runFile(runId, f)} name={f.split('/').pop() ?? f} />)}
+                {mine.filter(f => f.endsWith('.png')).map(f => <Shot key={f} src={runFile(runId, f)} caption={f.split('/').pop() ?? f} mono />)}
               </div>
             ) : <Empty>No screenshots for this test.</Empty>}
             <ul className="mt-3 grid gap-1 text-sm">
               {(files.data ?? []).filter(f => /\.(zip|webm)$/.test(f)).filter(f => f.toLowerCase().includes(pick.toLowerCase())).map(f =>
                 <li key={f} className="flex flex-wrap items-center gap-2"><a className="text-accent hover:underline" href={runFile(runId, f)}>{f.endsWith('.zip') ? 'Trace' : 'Video'}: {f}</a>
                   {f.endsWith('.zip') && <Button kind="ghost" busy={opening === f} disabled={!!opening} onClick={async () => {
-                    setOpening(f); setTraceMsg('');
-                    try { await api.post(`/api/runs/${runId}/open-trace`, { path: f }); setTraceMsg('The trace viewer opens in a new window on this machine.'); }
-                    catch (e) { setTraceMsg(errorText(e)); }
+                    setOpening(f); setTraceMsg(null);
+                    try { await api.post(`/api/runs/${runId}/open-trace`, { path: f }); setTraceMsg(ok('The trace viewer opens in a new window on this machine.')); }
+                    catch (e) { setTraceMsg(fail(e)); }
                     finally { setOpening(null); }
                   }}>{opening === f ? 'Opening…' : 'Open in trace viewer'}</Button>}</li>)}
             </ul>
-            {traceMsg && <div className="mt-2"><Notice tone={traceMsg.startsWith('The trace') ? 'good' : 'bad'}>{traceMsg}</Notice></div>}
+            <MsgNotice msg={traceMsg} />
           </QueryGate>
         </Card>
       )}
@@ -245,23 +245,6 @@ function Console({ r }: { r: RunDetail }) {
 }
 
 /** A person accepts one error group as harmless noise (decision 31: the analyst only proposes). */
-function Shot({ src, name }: { src: string; name: string }) {
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  return (
-    <figure className="grid gap-1">
-      <a href={src} target="_blank" rel="noreferrer" className="relative block">
-        {state === 'loading' && <div className="h-40 animate-pulse rounded bg-surface-2" role="status" aria-label={`Loading ${name}`} />}
-        {state === 'error' && <p className="rounded border border-line p-3 text-xs text-muted">This screenshot could not be loaded.</p>}
-        <img src={src} alt={name} loading="lazy"
-          ref={img => { if (img?.complete) setState(img.naturalWidth > 0 ? 'ready' : 'error'); }}
-          onLoad={() => setState('ready')} onError={() => setState('error')}
-          className={`w-full rounded border border-line ${state === 'ready' ? '' : 'absolute h-px w-px opacity-0'}`} />
-      </a>
-      <figcaption className="font-mono text-xs text-muted">{name}</figcaption>
-    </figure>
-  );
-}
-
 function NoiseButton({ group }: { group: any }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');

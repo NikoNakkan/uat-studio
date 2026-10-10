@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Interaction } from '../api';
 import { Activity } from '../components/Activity';
 import { NeedsYou } from '../components/NeedsYou';
-import { Button, Card, Field, Loading, Notice, Pill, Pre, QueryGate, Table, errorText, inputCls, useEvents, useTitle } from '../ui';
+import { Button, Card, Field, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, errorText, fail, inputCls, ok, useEvents, useTitle, type Msg } from '../ui';
 
 function fixFor(fix: string): string | null {
   if (fix.includes('init-agents')) return 'init-agents';
@@ -84,19 +84,19 @@ export function SetupPage() {
 function AppUnderTest({ env, onSaved }: { env: any; onSaved: () => void }) {
   const [start, setStart] = useState<string | null>(null);
   const [origins, setOrigins] = useState<string | null>(null);
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState<Msg>(null);
   const [saving, setSaving] = useState(false);
   const lock = useRef(false);
   if (!env) return null;
   const save = async () => {
     if (lock.current) return;
     lock.current = true;
-    setSaving(true); setMsg('');
+    setSaving(true); setMsg(null);
     try {
       if (start !== null) await api.put('/api/env', { key: 'START_PAGE', value: start });
       if (origins !== null) await api.put('/api/guardrails/origins', { origins: origins.split(/[\s,]+/).filter(Boolean) });
-      setMsg('Saved.'); onSaved();
-    } catch (e) { setMsg(errorText(e)); }
+      setMsg(ok('Saved.')); onSaved();
+    } catch (e) { setMsg(fail(e)); }
     finally { lock.current = false; setSaving(false); }
   };
   return (
@@ -109,7 +109,7 @@ function AppUnderTest({ env, onSaved }: { env: any; onSaved: () => void }) {
           <textarea className={`${inputCls} font-mono`} rows={3} value={origins ?? env.allowed_origins.join('\n')} onChange={e => setOrigins(e.target.value)} />
         </Field>
       </div>
-      {msg && <div className="mt-2"><Notice tone={msg === 'Saved.' ? 'good' : 'bad'}>{msg}</Notice></div>}
+      <MsgNotice msg={msg} />
     </Card>
   );
 }
@@ -117,7 +117,7 @@ function AppUnderTest({ env, onSaved }: { env: any; onSaved: () => void }) {
 function Accounts({ env, onSaved }: { env: any; onSaved: () => void }) {
   const [label, setLabel] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState<Msg>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const lock = useRef(false);
@@ -125,9 +125,9 @@ function Accounts({ env, onSaved }: { env: any; onSaved: () => void }) {
   const set = async (key: string) => {
     if (lock.current) return;
     lock.current = true;
-    setSaving(key); setMsg('');
-    try { await api.put('/api/env', { key, value: values[key] ?? '' }); setValues({ ...values, [key]: '' }); setMsg(`${key} saved.`); onSaved(); }
-    catch (e) { setMsg(errorText(e)); }
+    setSaving(key); setMsg(null);
+    try { await api.put('/api/env', { key, value: values[key] ?? '' }); setValues({ ...values, [key]: '' }); setMsg(ok(`${key} saved.`)); onSaved(); }
+    catch (e) { setMsg(fail(e)); }
     finally { lock.current = false; setSaving(null); }
   };
   return (
@@ -150,13 +150,13 @@ function Accounts({ env, onSaved }: { env: any; onSaved: () => void }) {
         <Button busy={adding} disabled={!label.trim() || !!saving} onClick={async () => {
           if (lock.current) return;
           lock.current = true;
-          setAdding(true); setMsg('');
-          try { await api.post('/api/env/accounts', { label }); setLabel(''); setMsg('Account added.'); onSaved(); }
-          catch (e) { setMsg(errorText(e)); }
+          setAdding(true); setMsg(null);
+          try { await api.post('/api/env/accounts', { label }); setLabel(''); setMsg(ok('Account added.')); onSaved(); }
+          catch (e) { setMsg(fail(e)); }
           finally { lock.current = false; setAdding(false); }
         }}>{adding ? 'Adding…' : 'Add account'}</Button>
       </div>
-      {msg && <div className="mt-2"><Notice tone={msg.endsWith('saved.') || msg === 'Account added.' ? 'good' : 'bad'}>{msg}</Notice></div>}
+      <MsgNotice msg={msg} />
     </Card>
   );
 }
