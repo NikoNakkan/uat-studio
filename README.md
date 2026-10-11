@@ -21,18 +21,19 @@ Where things are kept:
 
 ## Install once
 
-Requirements: Python 3.11+, Node.js 20.12+.
+Requirements: Python 3.11+, Node.js 20.12+. Then one command installs everything (Python packages, the
+front end, the kit's Playwright and Chromium); it is safe to run again:
 
 ```
-cd backend
-python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt      (macOS/Linux: .venv/bin/python)
-cd ../frontend
-npm install
-npm run build
+powershell -ExecutionPolicy Bypass -File install.ps1      (Windows)
+sh install.sh                                             (macOS, Linux)
 ```
 
-The kit itself (`kit/`) also needs `npm install` and `npx playwright install chromium` (the Setup page offers both).
+Everything else happens in the app: Set up checks the machine (with one "Fix everything"), takes the start page
+and allowed site from your Excel, lists the accounts the Excel names, and writes the login. You type only the test
+accounts' passwords. **No `.env` to create:** Studio keeps the start page and the accounts in its own settings
+folder (`~/.uat-studio/projects/<project>/private.json`), never in the project, and hands them to the tests only
+while they run. A `.env` in a project (from before, or the kit used on its own in VS Code) is still read.
 
 **The kit.** Studio uses `UAT_KIT_DIR` when it is set; else a kit folder next to uat-studio
 (`../agentic-testing-kit`), if there is one; else `kit/` in this repository. `kit/` is a clean copy: no `.env`,

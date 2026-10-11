@@ -114,14 +114,11 @@ def main():
     report("OK" if ok else "BROKEN", "Guard hook (.github/hooks/guard.json -> scripts/guard_hook.py)",
            "" if ok else "restore the hook files from the repository")
 
-    # Test environment
-    env_file = ROOT / ".env"
-    env = read_env(env_file)
-    if not env_file.exists():
-        report("MISSING", ".env", "copy .env.example to .env and fill in the values")
-    start = env.get("START_PAGE") or os.environ.get("START_PAGE", "")
+    # Test environment: from .env, or from the environment (UAT Studio passes its own values; no file needed)
+    env = {**read_env(ROOT / ".env"), **{k: v for k, v in os.environ.items() if v}}
+    start = env.get("START_PAGE", "")
     if not start:
-        report("MISSING", ".env: START_PAGE", "set the address of the app under test")
+        report("MISSING", "START_PAGE", "set the address of the app under test (UAT Studio: Set up; else in .env)")
     allowed = yaml.safe_load((ROOT / "config" / "guardrails.yaml").read_text(encoding="utf-8"))["allowed_origins"]
 
     accounts, pages = set(), {start} if start else set()
@@ -132,7 +129,8 @@ def main():
     for acc in sorted(accounts):
         for part in ("USER", "PASSWORD"):
             key = f"{acc}_{part}"
-            report("OK" if env.get(key) else "MISSING", f".env: {key}", "" if env.get(key) else "fill it in .env (never in the Excel)")
+            report("OK" if env.get(key) else "MISSING", f"account value {key}",
+                   "" if env.get(key) else "fill it in (UAT Studio: Set up; else in .env), never in the Excel")
     if accounts:
         login_ts = (ROOT / "tests" / "login.ts").read_text(encoding="utf-8") if (ROOT / "tests" / "login.ts").exists() else ""
         written = login_ts and "write login() for your app" not in login_ts

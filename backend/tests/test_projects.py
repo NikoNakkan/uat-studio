@@ -29,7 +29,8 @@ def test_new_project_starts_blank_with_the_kit_code(client, kit_dir, shop):
     assert folder != kit_dir and (folder / "scripts" / "features.py").exists() and (folder / ".github" / "agents").exists()
     assert "write login() for your app" in (folder / "tests" / "login.ts").read_text(encoding="utf-8")
     assert "allowed_origins:\n  - https://shop.test\n" in (folder / "config" / "guardrails.yaml").read_text(encoding="utf-8")
-    assert "START_PAGE=https://shop.test/start" in (folder / ".env").read_text(encoding="utf-8")
+    assert not (folder / ".env").exists()                                 # Studio keeps the private values itself
+    assert client.get("/api/env", headers=H("shop")).json()["start_page"] == "https://shop.test/start"
     assert not list((folder / "runs").glob("2*")) and not (folder / "app-map" / "app-map.yaml").exists()
 
 
@@ -93,3 +94,57 @@ def test_savings_settings_are_per_project_and_start_at_4_hours(client, shop):
     assert rows["main"]["savings"]["hourly_rate"] is None                   # other projects keep their own
     assert client.put(f"/api/projects/{shop['current']}/savings", json={"hourly_rate": -1}).status_code == 422
     assert client.put("/api/projects/nope/savings", json={"hourly_rate": 1}).status_code == 404
+
+
+def test_private_values_reach_the_tests_but_no_file_in_the_project(client, shop):
+    """Accounts saved on Set up are kept by Studio and handed to the kit's scripts as environment variables."""
+    import asyncio
+    from pathlib import Path
+
+    from app import processes, projects
+
+    folder = Path(next(p["dir"] for p in shop["projects"] if p["id"] == "shop"))
+    r = client.post("/api/env/accounts", headers=H("shop"), json={"label": "Clerk test account"})
+    key = r.json()["key"]
+    saved = client.put(f"/api/env/accounts/{key}", headers=H("shop"), json={"user": "clerk@shop.test", "password": "s3cret-Pass"})
+    assert saved.status_code == 200
+    assert not any("s3cret-Pass" in f.read_text(encoding="utf-8", errors="ignore")      # in no file of the project
+                   for f in folder.rglob("*") if f.is_file() and "node_modules" not in f.parts)
+    assert "s3cret-Pass" not in str(client.get("/api/env", headers=H("shop")).json())   # never sent back
+    token = projects.use("shop")
+    try:
+        script = folder / "print_env.py"
+        script.write_text(f"import os; print(os.environ.get('{key}_PASSWORD'), os.environ.get('START_PAGE'))", encoding="utf-8")
+        processes.SCRIPTS["print_env"] = "print_env.py"
+        out = asyncio.run(processes.run_script("print_env")).output
+    finally:
+        projects.reset(token)
+        processes.SCRIPTS.pop("print_env", None)
+    assert "s3cret-Pass https://shop.test/start" in out
+
+
+def test_the_start_page_and_allowed_site_come_from_the_excel(client, kit_dir):
+    """A project with no start page gets it from the cases' Start page column; a list already set is never widened."""
+    import json
+
+    from app import guardrails, projects, vault
+    from app.engine import engine
+    from app.stage_base import Ctx
+
+    r = client.post("/api/projects", json={"name": "Fresh", "start_page": "https://placeholder.test"})
+    pid = r.json()["current"]
+    token = projects.use(pid)
+    try:
+        folder = projects.current_dir()
+        vault.put(pid, "START_PAGE", "")
+        run = folder / "runs" / "2026-01-09-0000"
+        run.mkdir(parents=True)
+        (run / "cases.json").write_text(json.dumps([{"test_id": "TC-01", "start_page": "http://localhost:4173/patients"}]),
+                                        encoding="utf-8")
+        said = engine.adopt_start_page(Ctx("2026-01-09-0000"))
+        assert said == "Set up from the Excel: start page http://localhost:4173."
+        assert vault.values(pid, folder)["START_PAGE"] == "http://localhost:4173"
+        assert guardrails.load()["allowed_origins"] == ["https://placeholder.test"]       # not widened
+    finally:
+        projects.reset(token)
+        client.post("/api/projects/main/use")

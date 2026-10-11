@@ -154,8 +154,11 @@ def _kill_tree(proc: subprocess.Popen) -> bool:
     return True
 
 
-def _popen_kwargs():
+def _popen_kwargs(private: bool = False):
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+    if private:                       # the kit's scripts (tests, login check): the start page and accounts
+        from .accounts import env_values  # noqa: PLC0415
+        env.update(env_values())
     kw = {"cwd": projects.current_dir(), "env": env, "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT,
           "text": True, "encoding": "utf-8", "errors": "replace", "shell": os.name == "nt"}
     if os.name == "nt":
@@ -165,8 +168,9 @@ def _popen_kwargs():
     return kw
 
 
-def _run_blocking(cmd: list[str], timeout: float | None, on_line: Callable[[str], None] | None) -> ScriptResult:
-    kwargs = _popen_kwargs()
+def _run_blocking(cmd: list[str], timeout: float | None, on_line: Callable[[str], None] | None,
+                  private: bool = False) -> ScriptResult:
+    kwargs = _popen_kwargs(private)
     owner = _owner.get()
     seen = _generation(owner) if owner else 0
     if os.name == "nt":
@@ -216,7 +220,7 @@ async def run_script(name: str, *args: str, timeout: float | None = 900,
     """Run one of the kit's Python scripts with the app's Python (same packages)."""
     cmd = [PY, SCRIPTS[name], *[str(a) for a in args]]
     loop = asyncio.get_running_loop()
-    return await asyncio.to_thread(_run_blocking, cmd, timeout, _on_loop(loop, on_line))
+    return await asyncio.to_thread(_run_blocking, cmd, timeout, _on_loop(loop, on_line), True)
 
 
 async def run_command(cmd: list[str], timeout: float | None = 1800,

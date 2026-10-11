@@ -32,7 +32,7 @@ def accounts_in_example():
 
 
 def env_values():
-    """Values in .env, used only to scrub them from output. Never printed, never returned to a caller."""
+    """Account values (.env and the environment), used only to scrub them from output. Never printed or returned."""
     values = []
     env_file = ROOT / ".env"
     if env_file.exists():
@@ -42,6 +42,8 @@ def env_values():
                 v = m.group(1).strip('"').strip("'")
                 if len(v) >= 3 and not v.startswith("http"):
                     values.append(v)
+    # A host such as UAT Studio passes the accounts as environment variables instead of a .env file.
+    values += [v for k, v in os.environ.items() if k.endswith(("_USER", "_PASSWORD")) and len(v) >= 3]
     return values
 
 

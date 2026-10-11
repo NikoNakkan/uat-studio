@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import re
 from functools import partial
+from urllib.parse import urlparse
 
-from . import agents, kit, pw_agents
+from . import accounts, agents, guardrails, kit, projects, pw_agents, vault
 from .events import bus
 from .interactions import interactions
 from .stage_base import Ctx, StageRunner, StopRun
@@ -12,6 +13,14 @@ from .stage_base import Ctx, StageRunner, StopRun
 
 class PrepareStages(StageRunner):
     async def stage_preflight(self, c: Ctx):
+        # No start page or allowed site yet: read the Excel's cases first and take them from its "Start page"
+        # column, so a new project needs no typing for them (intake reads the Excel again right after).
+        needs = not accounts.env_values().get("START_PAGE") or not guardrails.load()["allowed_origins"]
+        if needs and (c.run / "input.xlsx").exists() and not (c.run / "cases.json").exists():
+            r = await self.script(c, "read_excel", f"{c.rel}/input.xlsx", f"{c.rel}/cases.json")
+            adopted = self.adopt_start_page(c) if r.code == 0 else ""
+            if adopted:
+                bus.emit(c.run_id, "note", stage=c.stage, text=adopted)
         while True:
             args = ["--run", c.rel] if (c.run / "cases.json").exists() else []
             r = await self.script(c, "check_setup", *args)
@@ -30,10 +39,30 @@ class PrepareStages(StageRunner):
         if r.code != 0:
             kit.write_json(c.run / "studio-validation.json", {"output": r.output})
             raise StopRun("The Excel has problems to fix (see the activity). Fix the Excel and start a new run.")
+        adopted = self.adopt_start_page(c)
+        if adopted:
+            bus.emit(c.run_id, "note", stage=c.stage, text=adopted)
         if kit.is_on("skill-detecting-test-changes"):
             r = await self.script(c, "diff_cases", c.rel)
             return "done", r.output.splitlines()[0] if r.output else ""
         return "done", "change detection is off: every case is treated as new"
+
+    def adopt_start_page(self, c: Ctx) -> str:
+        """Fill in the start page from the Excel's "Start page" column when Set up has none, and allow that site
+        when no site is allowed yet. A list someone already set is never widened: that would weaken the guardrails."""
+        urls = [urlparse(x.get("start_page") or "") for x in c.cases()]
+        origin = next((f"{u.scheme}://{u.netloc}" for u in urls if u.scheme in ("http", "https") and u.netloc), "")
+        if not origin:
+            return ""
+        said = []
+        if not accounts.env_values().get("START_PAGE"):
+            vault.put(projects.current_id(), "START_PAGE", origin)
+            said.append(f"start page {origin}")
+        g = guardrails.load()
+        if not g["allowed_origins"]:
+            guardrails.save({**g, "allowed_origins": [origin]})
+            said.append(f"allowed site {origin}")
+        return f"Set up from the Excel: {' and '.join(said)}." if said else ""
 
     def cases_to_clarify(self, c: Ctx) -> list[str]:
         changes = kit.read_json(c.run / "changes.json", {}).get("cases", {})

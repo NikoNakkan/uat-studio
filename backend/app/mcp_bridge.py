@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 from mcp import Client, StdioServerParameters
 
-from . import guard, kit
+from . import accounts, guard, kit
 from .llm import Tool, ToolResult
 from .settings import load_settings
 
@@ -66,7 +66,8 @@ def load_skill(name: str, with_references: bool = False) -> str:
 @contextlib.asynccontextmanager
 async def playwright_server(run_dir: Path | None):
     """Start the Playwright test MCP server for one stage, in the kit, with the run's folders."""
-    env = {"UAT_PROGRESS": "0"}                       # agent test runs never write the run's progress
+    # The seeds log in through the fixture, which reads the accounts from the environment; agents never see it.
+    env = {**accounts.env_values(), "UAT_PROGRESS": "0"}   # agent test runs never write the run's progress
     if run_dir is not None:
         env.update(UAT_RUN_DIR=str(run_dir), UAT_EVIDENCE_DIR=str(run_dir / "evidence-agents"))
     server = ["npx", "playwright", "run-test-mcp-server"] + ([] if load_settings().show_agent_browser else ["--headless"])

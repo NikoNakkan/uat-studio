@@ -210,9 +210,8 @@ def create(name: str, start_page: str, root: Path | None = None) -> dict:
                             flags=re.S | re.M), encoding="utf-8")
     _copy(KIT_DIR / "templates" / "login.ts", folder / "tests" / "login.ts")
     for rel, body in {
-        ".env.example": "# Copy to .env (never committed). Test accounts are added on the Setup page.\n"
+        ".env.example": "# For the kit on its own (VS Code): copy to .env. UAT Studio keeps these values itself.\n"
                         f"START_PAGE={start_page.strip()}\n",
-        ".env": f"START_PAGE={start_page.strip()}\n",
         "GLOSSARY.md": f"# {name}: the app's own words\n\nAdded by the clarifier as the test author explains them.\n",
         "app-map/README.md": "The pages and elements Playwright's planner saw in the app. Written by merge_app_map.py.\n",
         "specs/README.md": "Playwright plans, written by excel_to_plan.py. Do not edit by hand.\n",
@@ -221,6 +220,8 @@ def create(name: str, start_page: str, root: Path | None = None) -> dict:
         (folder / rel).parent.mkdir(parents=True, exist_ok=True)
         (folder / rel).write_text(body, encoding="utf-8")
     note = _link_node_modules(folder)
+    from . import vault  # noqa: PLC0415 - vault imports settings, which this module also uses
+    vault.put(pid, "START_PAGE", start_page.strip())
 
     project = {"id": pid, "name": name, "dir": str(folder), "created": datetime.now().isoformat(timespec="seconds")}
     data["projects"].append(project)

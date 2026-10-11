@@ -4,7 +4,7 @@ import { api, type EnvInfo } from '../../api';
 import { useAction } from '../../lib/useAction';
 import { Button, Field, MsgNotice, inputCls, ok, type Msg } from '../../ui';
 
-/** The start page (START_PAGE in .env) and the only sites the browser may open (config/guardrails.yaml). */
+/** The start page (kept by Studio, handed to the tests) and the only sites the browser may open (config/guardrails.yaml). */
 export function AppUnderTest({ env, onSaved }: { env: EnvInfo; onSaved: () => void }) {
   const [start, setStart] = useState<string | null>(null);
   const [origins, setOrigins] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export function AppUnderTest({ env, onSaved }: { env: EnvInfo; onSaved: () => vo
   return (
     <div className="grid gap-3">
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Start page" hint="Where every test starts (START_PAGE in .env).">
+        <Field label="Start page" hint="Where every test starts. Filled in from the Excel's Start page column when you start a run.">
           <input className={inputCls} value={start ?? env.start_page} onChange={e => setStart(e.target.value)} placeholder="https://test.app.example.com" />
         </Field>
         <Field label="Allowed sites" hint="The only sites the browser may open. One per line, scheme and host only. The other guardrails are on their own page.">

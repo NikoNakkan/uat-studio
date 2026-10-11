@@ -16,15 +16,10 @@ def env_example_accounts() -> list[str]:
 
 
 def env_values() -> dict[str, str]:
-    """The private .env file as a dict. Only the app reads it; agents never see these values."""
-    out = {}
-    p = kit_dir() / ".env"
-    if p.exists():
-        for line in p.read_text(encoding="utf-8").splitlines():
-            m = re.match(r"^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$", line)
-            if m:
-                out[m.group(1)] = m.group(2).strip('"').strip("'")
-    return out
+    """The project's private values (start page, accounts): kept by Studio, with an old .env as fallback.
+    Only the app reads them; agents never see these values."""
+    from . import projects, vault  # noqa: PLC0415 - projects imports this module's neighbours
+    return vault.values(projects.current_id(), kit_dir())
 
 
 def account_key(name: str) -> str:
