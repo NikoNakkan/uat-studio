@@ -47,8 +47,12 @@ export type Event = { seq: number; ts: number; type: string; stage?: string; age
 export const runFile = (runId: string, path: string) => `/api/runs/${runId}/file?path=${encodeURIComponent(path)}`;
 export const kitFile = (path: string) => `/api/kit/file?path=${encodeURIComponent(path)}`;
 
+/** An agent's job and the model recommended for it (the default until the person chooses another). */
+export type AgentInfo = { job: string; recommended: string; why: string };
+/** A model a person can choose; price is US dollars per million input / output tokens. */
+export type ModelChoice = { id: string; name: string; price: string; use: string };
 export type Settings = { api_key_set: boolean; api_key_hint: string; api_key_from_env?: boolean; models: Record<string, string>;
-  agents: Record<string, string>; default_model: string; model_choices: string[]; max_turns: number; max_output_tokens: number;
+  agents: Record<string, AgentInfo>; default_model: string; model_choices: ModelChoice[]; max_turns: number; max_output_tokens: number;
   show_agent_browser: boolean; kit_dir: string };
 export type SetupRow = { status: string; item: string; fix: string };
 export type SetupCheck = { ok: boolean; rows: SetupRow[]; output: string };

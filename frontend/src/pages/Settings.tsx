@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Settings } from '../api';
+import { AgentModels, ModelGuide } from '../components/AgentModels';
 import { ApiKeyBox } from '../components/ApiKey';
+import { changedAgents, recommendedModels } from '../lib/models';
 import { useSettings } from '../lib/queries';
 import { useAction } from '../lib/useAction';
 import { Button, Card, Empty, Field, Loading, MsgNotice, Notice, Pre, QueryGate, Table, errorText, inputCls, ok, useTitle, type Msg } from '../ui';
@@ -46,16 +48,21 @@ function ModelsCard({ settings }: { settings: Settings }) {
     setMsg(ok('Saved.'));
     qc.invalidateQueries({ queryKey: ['settings'] });
   });
+  const changed = changedAgents(settings.agents, form.models);
   return (
-    <Card title="Model per agent" actions={<Button kind="primary" busy={!!busy} disabled={!draft || !!busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</Button>}>
-      <p className="mb-3 text-sm text-muted">Each agent's model is recorded with its token use in every run (decision 32). Cheaper models for simple jobs are future feature F15.</p>
-      <Table head={['Agent', 'Job', 'Model']} rows={Object.entries(settings.agents).map(([agent, work]) => [
-        <span className="font-mono text-xs">{agent}</span>, work,
-        <select aria-label={`Model for ${agent}`} className={inputCls} value={form.models[agent] ?? form.default_model}
-          onChange={e => edit({ models: { ...form.models, [agent]: e.target.value } })}>
-          {settings.model_choices.map(m => <option key={m}>{m}</option>)}
-        </select>,
-      ])} />
+    <Card title="Model per agent" actions={<>
+      <Button disabled={!changed.length || !!busy} onClick={() => edit({ models: recommendedModels(settings.agents) })}
+        title="Put every agent back on its recommended model">Use recommended for all</Button>
+      <Button kind="primary" busy={!!busy} disabled={!draft || !!busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</Button>
+    </>}>
+      <p className="mb-3 text-sm text-muted">
+        Each agent starts on the model recommended for its job: a stronger one where a wrong call costs a person's time, a cheaper one for short jobs.
+        Change any of them here; each agent's model is recorded with its token use in every run. {changed.length
+          ? `${changed.length} of ${Object.keys(settings.agents).length} agents use a model you chose.`
+          : 'Every agent uses its recommended model.'}
+      </p>
+      <ModelGuide choices={settings.model_choices} />
+      <AgentModels agents={settings.agents} choices={settings.model_choices} models={form.models} onChange={models => edit({ models })} />
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Field label="Most turns per agent conversation" hint="A run limit: an agent stops after this many model calls (F8).">
           <input type="number" min={5} max={300} className={inputCls} value={form.max_turns} onChange={e => edit({ max_turns: Number(e.target.value) })} />

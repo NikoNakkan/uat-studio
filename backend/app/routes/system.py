@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from .. import kit, projects
 from ..engine import engine
 from ..llm import MissingApiKey, client
-from ..settings import AGENTS, load_settings, save_settings
+from ..settings import load_settings, save_settings
 
 router = APIRouter()
 
@@ -41,7 +41,7 @@ def put_settings(body: SettingsIn):
     elif body.api_key:
         s.api_key = body.api_key.strip()
     if body.models is not None:
-        s.models = {a: m for a, m in body.models.items() if a in AGENTS and m}
+        s.choose_models(body.models)
     for field in ("default_model", "max_turns", "max_output_tokens", "show_agent_browser"):
         if getattr(body, field) is not None:
             setattr(s, field, getattr(body, field))
