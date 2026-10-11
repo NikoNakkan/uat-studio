@@ -10,3 +10,64 @@ def test_resume_starts_the_run(client, kit_dir):
     assert r.json() == {"running": True}
     client.post(f"/api/runs/{run_id}/stop")
     client.delete(f"/api/runs/{run_id}")
+
+
+def test_a_retried_test_stage_runs_every_test_again(kit_dir):
+    """Resume skips tests that already have a result; a retry of the test stage must not (the app may have changed)."""
+    import asyncio
+    import json
+
+    from app import kit
+    from app.engine import engine
+    from app.stage_base import Ctx
+
+    run = kit_dir / "runs" / "2026-01-02-0000"
+    run.mkdir(parents=True)
+    (run / "progress.json").write_text(json.dumps({"stages": {}, "tests": {"TC-01": {"result": "passed"}}}), encoding="utf-8")
+    seen: list[tuple] = []
+
+    class Done:
+        code, output = 0, ""
+
+    async def fake_script(c, name, *args, **kw):
+        seen.append(args)
+        return Done()
+
+    engine.script = fake_script
+    try:
+        c = Ctx("2026-01-02-0000")
+        asyncio.run(engine.stage_run(c))
+        c.mark_retried("run")
+        asyncio.run(engine.stage_run(c))
+        asyncio.run(engine.stage_run(c))
+    finally:
+        del engine.script
+    assert ["--resume" in a for a in seen] == [True, False, True]   # resume, retry (all tests), resume again
+    assert "retried" not in kit.read_json(run / "studio-state.json", {})
+
+
+def test_retrying_a_stage_redoes_the_stages_after_it(client, kit_dir):
+    import json
+
+    from app import kit
+    from app.engine import engine
+
+    ids = [s["id"] for s in kit.workflow()["stages"]]
+    run_stage = ids.index("run")
+    run = kit_dir / "runs" / "2026-01-03-0000"
+    run.mkdir(parents=True)
+    stages = {s: {"status": "done"} for s in ids[: run_stage + 3]}
+    stages[ids[run_stage + 1]] = {"status": "skipped"}
+    (run / "progress.json").write_text(json.dumps({"stages": stages, "tests": {}}), encoding="utf-8")
+    started = engine.start
+    engine.start = lambda run_id: None          # only the marking is under test
+    try:
+        assert client.post("/api/runs/2026-01-03-0000/retry", json={"stage": "run"}).json() == {"running": True}
+    finally:
+        engine.start = started
+    after = kit.read_json(run / "progress.json")["stages"]
+    assert after[ids[run_stage - 1]]["status"] == "done"            # before the retried stage: kept
+    assert after["run"]["status"] == "started"
+    assert after[ids[run_stage + 1]]["status"] == "skipped"          # switched off: stays off
+    assert after[ids[run_stage + 2]]["status"] == "started"          # after it: done again
+    assert client.post("/api/runs/2026-01-03-0000/retry", json={"stage": "nope"}).status_code == 400

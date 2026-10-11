@@ -34,6 +34,21 @@ class Ctx:
     def save_state(self, s: dict) -> None:
         kit.write_json(self.state_file, s)
 
+    def mark_retried(self, sid: str) -> None:
+        """The person asked to do this stage again from scratch (not to continue where it stopped)."""
+        s = self.state()
+        s["retried"] = sid
+        self.save_state(s)
+
+    def take_retried(self, sid: str) -> bool:
+        """Whether this stage was retried by the person; the flag is used once."""
+        s = self.state()
+        if s.get("retried") != sid:
+            return False
+        s.pop("retried")
+        self.save_state(s)
+        return True
+
     def progress(self) -> dict:
         return kit.read_json(self.run / "progress.json", {}) or {}
 

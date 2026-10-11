@@ -55,7 +55,9 @@ class TestStages(StageRunner):
             c.stage = "test_check"
 
     async def stage_run(self, c: Ctx):
-        resume = bool(c.progress().get("tests"))
+        # Resuming a stopped run skips the tests that already have a result; a retry runs them all again,
+        # because the app (or the tests) may have changed since.
+        resume = not c.take_retried("run") and bool(c.progress().get("tests"))
         args = [c.rel] + (["--resume"] if resume else [])
         r = await self.script(c, "run_tests", *args, timeout=7200, stream=True)
         if r.code == 2 and "Nothing" in r.output:

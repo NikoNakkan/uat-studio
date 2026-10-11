@@ -16,6 +16,7 @@ from .. import accounts, costs, kit
 from ..engine import engine
 from ..events import bus
 from ..interactions import interactions
+from ..stage_base import Ctx
 from .common import RUN_FILES, RUN_TEXTS, raise_on_error, run_or_404
 
 router = APIRouter()
@@ -190,11 +191,18 @@ class RetryIn(BaseModel):
 
 @router.post("/runs/{run_id}/retry")
 async def retry_stage(run_id: str, body: RetryIn):
-    """Mark a failed or waiting stage as not started, then resume the run from it."""
-    run_or_404(run_id)
+    """Do a stage again, then resume the run from it. The stages after it are done again too: they were built
+    on what this stage produced (a retried test stage means new results to diagnose and sign off)."""
+    p = run_or_404(run_id)
     if engine.is_running(run_id):
         raise HTTPException(409, "The run is running.")
-    r = await kit.run_script("progress", "stage", f"runs/{run_id}", body.stage, "started", "--note", "retried by the person")
-    raise_on_error(r)
+    ids = [s["id"] for s in kit.workflow()["stages"]]
+    if body.stage not in ids:
+        raise HTTPException(400, f"No stage {body.stage}.")
+    stages = (kit.read_json(p / "progress.json", {}) or {}).get("stages", {})
+    later = [s for s in ids[ids.index(body.stage) + 1:] if stages.get(s, {}).get("status") not in (None, "skipped")]
+    for sid, note in [(body.stage, "retried by the person"), *((s, f"to do again after retrying {body.stage}") for s in later)]:
+        raise_on_error(await kit.run_script("progress", "stage", f"runs/{run_id}", sid, "started", "--note", note))
+    Ctx(run_id).mark_retried(body.stage)
     engine.start(run_id)
     return {"running": True}
