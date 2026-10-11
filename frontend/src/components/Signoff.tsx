@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type RunDetail } from '../api';
+import { TestEvidence, isProblem } from './Evidence';
 import { Button, Card, Empty, Field, Pill, Table, errorText, inputCls } from '../ui';
 
 /** The AI recommends, a person decides (decisions 6 and 21). Every decision runs record_decision.py. */
@@ -14,6 +15,8 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [open, setOpen] = useState<{ unit: string; test: string } | null>(null);   // the test whose evidence is shown
+  const results = r.data.progress?.tests ?? {};
   const lock = useRef(false);
   if (!check) return <Empty>The evidence is checked when the run reaches sign-off.</Empty>;
 
@@ -38,14 +41,48 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
           <input className={`${inputCls} ${by.trim() ? '' : 'border-warn ring-1 ring-warn/40'}`} value={by} placeholder="Your name" aria-required
             onChange={e => { setBy(e.target.value); localStorageSet('uat-signoff-by', e.target.value); }} /></Field>}>
         <p className="mb-2 text-xs text-muted">✦ marks the AI's recommendation. You decide; every decision is recorded with your name.</p>
-        <Table head={['Unit', 'Tests', 'AI recommendation', 'Reasoning', 'Decision']} rows={units.map(([unit, u]) => [
-          <b>{unit}</b>, <span className="font-mono text-xs">{u.tests.join(', ')}</span>, <Pill value={u.recommendation} />,
-          <span className="text-sm">{reasoning[unit] ?? ''}</span>,
-          signoff.decisions[unit]
-            ? <span><Pill value={signoff.decisions[unit].decision} /> <span className="text-xs text-muted">by {signoff.decisions[unit].by}{signoff.decisions[unit].reason ? ` · ${signoff.decisions[unit].reason}` : ''}</span></span>
-            : sealed ? '—' : <Decide unit={unit} suggested={u.recommendation} busy={busyKey === `d:${unit}`} disabled={!by.trim() || !!busyKey} onDecide={(decision, reason) =>
-                post(`d:${unit}`, `/api/runs/${runId}/signoff/decision`, { unit, decision, by, reason })} />,
-        ])} />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-line text-left text-xs text-muted">
+              {['Unit', 'Tests (click for evidence)', 'AI recommendation', 'Reasoning', 'Decision'].map(h => <th key={h} className="px-2 py-1.5 font-medium">{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {units.map(([unit, u]) => {
+                const shown = open && open.unit === unit ? open.test : null;
+                return (
+                  <Fragment key={unit}>
+                    <tr className="border-b border-line/60 align-top">
+                      <td className="px-2 py-2 font-semibold">{unit}</td>
+                      <td className="px-2 py-2">
+                        <div className="flex max-w-64 flex-wrap gap-1">
+                          {u.tests.map((id: string) => {
+                            const bad = isProblem(results[id]?.result);
+                            const on = shown === id;
+                            return (
+                              <button key={id} type="button" aria-pressed={on} onClick={() => setOpen(on ? null : { unit, test: id })}
+                                title={bad ? `${id} did not pass: see why` : `See ${id}'s screenshots`}
+                                className={`rounded-md border px-1.5 py-0.5 font-mono text-xs ${on ? 'border-accent bg-accent text-accent-ink'
+                                  : bad ? 'border-bad/60 bg-bad/10 font-semibold text-bad hover:bg-bad/20' : 'border-line bg-surface hover:border-accent'}`}>
+                                {bad ? '! ' : ''}{id}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2"><Pill value={u.recommendation} /></td>
+                      <td className="px-2 py-2 text-sm">{reasoning[unit] ?? ''}</td>
+                      <td className="px-2 py-2">{signoff.decisions[unit]
+                        ? <span><Pill value={signoff.decisions[unit].decision} /> <span className="text-xs text-muted">by {signoff.decisions[unit].by}{signoff.decisions[unit].reason ? ` · ${signoff.decisions[unit].reason}` : ''}</span></span>
+                        : sealed ? '—' : <Decide unit={unit} suggested={u.recommendation} busy={busyKey === `d:${unit}`} disabled={!by.trim() || !!busyKey} onDecide={(decision, reason) =>
+                            post(`d:${unit}`, `/api/runs/${runId}/signoff/decision`, { unit, decision, by, reason })} />}</td>
+                    </tr>
+                    {shown && <tr><td colSpan={5} className="px-2 pb-3"><TestEvidence runId={runId} r={r} testId={shown} /></td></tr>}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {manual.length > 0 && (
