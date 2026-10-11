@@ -178,3 +178,16 @@ def test_a_reconnecting_browser_resumes_after_its_last_event():
     assert _resume_from(0, "42") == 42                   # Last-Event-ID wins over a stale ?after=0
     assert _resume_from(50, "42") == 50
     assert _resume_from(7, "not-a-number") == 7
+
+
+def test_a_new_run_can_reuse_the_latest_excel(client, kit_dir):
+    with open(kit_dir / "examples" / "expense-tracker-tests.xlsx", "rb") as f:
+        first = client.post("/api/runs", files={"file": ("cases-v1.xlsx", f)},
+                            data={"strictness": "standard", "start": "false"}).json()["id"]
+    latest = client.get("/api/excel/latest").json()
+    assert latest["reusable"] and latest["excel"] == "cases-v1.xlsx"
+    second = client.post("/api/runs", data={"strictness": "standard", "start": "false", "reuse": "latest"}).json()["id"]
+    assert client.get(f"/api/runs/{second}").json()["data"]["progress"]["excel"].endswith("cases-v1.xlsx")
+    assert client.post("/api/runs", data={"strictness": "standard", "start": "false"}).status_code == 400
+    for run_id in (first, second):
+        client.delete(f"/api/runs/{run_id}")

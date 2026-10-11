@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, type RunSummary } from '../api';
+import { ExcelPicker, useLatestExcel } from '../components/ExcelPicker';
 import { RunActions } from '../components/RunActions';
 import { Stepper, type StepDef } from '../components/Stepper';
 import { Button, Empty, Field, Notice, Pill, QueryGate, Table, errorText, inputCls, useTitle } from '../ui';
@@ -59,17 +60,19 @@ function NewRun() {
   const examples = useQuery({ queryKey: ['examples'], queryFn: () => api.get<string[]>('/api/kit/examples') });
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
+  const latest = useLatestExcel();
+  const canReuse = !!latest.data?.reusable;
   const [strictness, setStrictness] = useState<keyof typeof STRICTNESS>('standard');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const lock = useRef(false);
   const start = async () => {
-    if (!file || lock.current) return;
+    if ((!file && !canReuse) || lock.current) return;
     lock.current = true;
     setBusy(true); setError('');
     try {
       const form = new FormData();
-      form.append('file', file);
+      if (file) form.append('file', file); else form.append('reuse', 'latest');
       form.append('strictness', strictness);
       form.append('start', 'true');
       const r = await api.post<{ id: string; started: boolean; message?: string }>('/api/runs', form);
@@ -79,16 +82,15 @@ function NewRun() {
   };
   return (
     <div className="grid gap-4">
-      <form className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end" onSubmit={e => { e.preventDefault(); start(); }}>
-        <Field label="Excel file" hint="One row per test case, in the agreed template.">
-          <input type="file" accept=".xlsx" className={`${inputCls} file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-2 file:py-1 file:text-sm file:font-medium file:text-ink`} onChange={e => setFile(e.target.files?.[0] ?? null)} />
-        </Field>
+      <form className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] md:items-end" onSubmit={e => { e.preventDefault(); start(); }}>
+        <ExcelPicker label="Excel of test cases" file={file} onFile={setFile} disabled={busy}
+          emptyHint="One row per test case, in the agreed template." />
         <Field label="How many questions?" hint={STRICTNESS[strictness]}>
           <select className={inputCls} value={strictness} disabled={busy} onChange={e => setStrictness(e.target.value as keyof typeof STRICTNESS)}>
             {Object.keys(STRICTNESS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
-        <Button type="submit" kind="primary" busy={busy} disabled={!file}>{busy ? 'Starting…' : 'Start run'}</Button>
+        <Button type="submit" kind="primary" busy={busy} disabled={!file && !canReuse}>{busy ? 'Starting…' : 'Start run'}</Button>
       </form>
       {error && <Notice>{error}</Notice>}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

@@ -370,23 +370,26 @@ def account_label(name: str) -> str:
 
 def cases_source() -> dict:
     """Which test cases Studio knows best: the newer of the newest run's and the Excel given to login setup.
-    {"source": "run <id>" | "login setup" | "", "excel": file name, "file": path, "cases": [...]}."""
+    {"source": "run <id>" | "login setup" | "", "excel": file name, "file": cases.json, "xlsx": the Excel itself,
+    "cases": [...]}."""
     found = []
     for run_id in list_runs():
-        f = runs_dir() / run_id / "cases.json"
-        cases = read_json(f)
-        if cases:
-            excel = (read_json(runs_dir() / run_id / "progress.json", {}) or {}).get("excel", "")
-            found.append({"source": f"run {run_id}", "excel": Path(excel).name, "file": f, "cases": cases})
-            break
+        run = runs_dir() / run_id
+        if not (run / "input.xlsx").exists():
+            continue
+        cases_file = run / "cases.json"       # missing until the run has read its Excel
+        excel = (read_json(run / "progress.json", {}) or {}).get("excel", "")
+        found.append({"source": f"run {run_id}", "excel": Path(excel).name, "cases": read_json(cases_file, []) or [],
+                      "file": cases_file if cases_file.exists() else run / "input.xlsx", "xlsx": run / "input.xlsx"})
+        break
     f = runs_dir() / "setup" / "cases.json"
     cases = read_json(f)
     if cases:
         name = runs_dir() / "setup" / "requirements-name.txt"
-        found.append({"source": "login setup", "file": f, "cases": cases,
+        found.append({"source": "login setup", "file": f, "cases": cases, "xlsx": runs_dir() / "setup" / "requirements.xlsx",
                       "excel": name.read_text(encoding="utf-8").strip() if name.exists() else "requirements.xlsx"})
     if not found:
-        return {"source": "", "excel": "", "file": None, "cases": []}
+        return {"source": "", "excel": "", "file": None, "cases": [], "xlsx": None}
     return max(found, key=lambda x: x["file"].stat().st_mtime)
 
 

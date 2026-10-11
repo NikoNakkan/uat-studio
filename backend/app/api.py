@@ -221,14 +221,26 @@ def list_runs():
 
 
 @router.post("/runs")
-async def create_run(file: UploadFile = File(...), strictness: str = Form("standard"), start: bool = Form(True)):
-    if not (file.filename or "").lower().endswith(".xlsx"):
-        raise HTTPException(400, "Upload the Excel file (.xlsx) in the agreed template.")
+async def create_run(file: UploadFile | None = File(None), strictness: str = Form("standard"), start: bool = Form(True),
+                     reuse: str = Form("")):
+    """A new run from an uploaded Excel, or (reuse="latest") from the Excel Studio already has: the newest run's
+    or the one given to login setup, so the same file need not be uploaded again."""
     if strictness not in ("basic", "standard", "strict"):
         raise HTTPException(400, "Strictness is basic, standard or strict.")
-    tmp = Path(tempfile.mkdtemp()) / Path(file.filename).name
-    with tmp.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    if file is not None and file.filename:
+        if not file.filename.lower().endswith(".xlsx"):
+            raise HTTPException(400, "Upload the Excel file (.xlsx) in the agreed template.")
+        tmp = Path(tempfile.mkdtemp()) / Path(file.filename).name
+        with tmp.open("wb") as f:
+            shutil.copyfileobj(file.file, f)
+    elif reuse == "latest":
+        src = kit.cases_source()
+        if not src["xlsx"] or not src["xlsx"].exists():
+            raise HTTPException(400, "There is no earlier Excel to reuse. Choose the Excel file.")
+        tmp = Path(tempfile.mkdtemp()) / (src["excel"] or "test-cases.xlsx")
+        shutil.copyfile(src["xlsx"], tmp)
+    else:
+        raise HTTPException(400, "Choose the Excel file (.xlsx) in the agreed template.")
     r = await kit.run_script("progress", "new", str(tmp), "--strictness", strictness)
     shutil.rmtree(tmp.parent, ignore_errors=True)
     m = re.search(r"RUN runs/(\S+)", r.output)
@@ -808,12 +820,19 @@ async def stop_login_setup():
     return {"running": still}
 
 
-@router.get("/setup/login-source")
-def login_source():
-    """The Excel the login agent reads: its name, where it came from and how many cases it has."""
+@router.get("/excel/latest")
+def latest_excel():
+    """The Excel Studio already has (newest run's, or the one given to login setup): its name, where it came
+    from and how many cases it has. A new run can reuse it, and the login agent reads it."""
     s = kit.cases_source()
     return {"source": s["source"], "excel": s["excel"], "cases": len(s["cases"]),
+            "reusable": bool(s["xlsx"] and s["xlsx"].exists()),
             "accounts": sorted({c["login_as"] for c in s["cases"] if c.get("login_as")})}
+
+
+@router.get("/setup/login-source")
+def login_source():
+    return latest_excel()
 
 
 @router.post("/setup/check-login")
