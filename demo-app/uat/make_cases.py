@@ -438,9 +438,19 @@ def v4() -> list[dict]:
     return rows
 
 
+DEMO_IDS = ["TC-01", "TC-03", "TC-04", "TC-21", "TC-25", "TC-39", "TC-40", "TC-41", "TC-42", "TC-43"]
+
+
+def demo10() -> list[dict]:
+    """A short pack for a live demo: six cases that pass and the four that find the planted bugs (TC-39..42)."""
+    by_id = {r["test_id"]: r for r in v4()}
+    return [dict(by_id[t]) for t in DEMO_IDS]
+
+
 if __name__ == "__main__":
     write(ROOT / "lumen-clinic-tests.xlsx", V1)
     write(ROOT / "lumen-clinic-tests-v2.xlsx", v2())
     write(ROOT / "lumen-clinic-tests-v3.xlsx", v3())
     write(ROOT / "lumen-clinic-tests-v4.xlsx", v4())
-    print(f"Wrote {len(V1)}, {len(v2())}, {len(v3())} and {len(v4())} cases in {ROOT}")
+    write(ROOT / "lumen-clinic-demo-10.xlsx", demo10())
+    print(f"Wrote {len(V1)}, {len(v2())}, {len(v3())}, {len(v4())} and {len(demo10())} cases in {ROOT}")

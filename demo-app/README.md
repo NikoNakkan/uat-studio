@@ -35,6 +35,7 @@ Each browser visit starts from the same morning: Ada at 09:00 still Booked, alle
 | `uat/lumen-clinic-tests-v2.xlsx` | A later run of the same pack. TC-04 is only reworded, TC-08 moves 14:30 to 15:00, TC-14 is gone, TC-20 is new and close to TC-05. The new desk cases are in both packs. |
 | `uat/lumen-clinic-tests-v3.xlsx` | The demo of a caught bug. Same as v2, plus TC-15 now sets paracetamol to 6 instead of 8, and TC-39 is new: pay INV-100 while Ada also owes INV-102. TC-39 fails on purpose (see Planted bug). |
 | `uat/lumen-clinic-tests-v4.xlsx` | v3 plus: TC-31 orders HbA1c instead of a lipid panel; new TC-40 (search ignores capital letters), TC-41 (a note stays on its own patient), TC-42 (saline at 5 is not low) find the v4 bugs; new TC-43 (urine culture) should pass. |
+| `uat/lumen-clinic-demo-10.xlsx` | A short pack for a live demo, as a first run of a fresh project: 10 cases. TC-01, TC-03, TC-04, TC-21, TC-25 and TC-43 should pass; TC-39, TC-40, TC-41 and TC-42 find the four planted bugs. |
 
 Paste `uat/GLOSSARY.md` into Knowledge before the run if you want the clarifier to keep those meanings.
 
