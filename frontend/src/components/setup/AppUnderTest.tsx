@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { api, type EnvInfo } from '../../api';
 import { useAction } from '../../lib/useAction';
 import { Button, Field, MsgNotice, inputCls, ok, type Msg } from '../../ui';
@@ -22,11 +23,14 @@ export function AppUnderTest({ env, onSaved }: { env: EnvInfo; onSaved: () => vo
         <Field label="Start page" hint="Where every test starts (START_PAGE in .env).">
           <input className={inputCls} value={start ?? env.start_page} onChange={e => setStart(e.target.value)} placeholder="https://test.app.example.com" />
         </Field>
-        <Field label="Allowed sites" hint="The only sites the browser may open. One per line, scheme and host only.">
+        <Field label="Allowed sites" hint="The only sites the browser may open. One per line, scheme and host only. The other guardrails are on their own page.">
           <textarea className={`${inputCls} font-mono`} rows={3} value={origins ?? env.allowed_origins.join('\n')} onChange={e => setOrigins(e.target.value)} />
         </Field>
       </div>
-      <div><Button kind="primary" busy={!!busy} disabled={start === null && origins === null} onClick={save}>{busy ? 'Saving…' : 'Save'}</Button></div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button kind="primary" busy={!!busy} disabled={start === null && origins === null} onClick={save}>{busy ? 'Saving…' : 'Save'}</Button>
+        <Link to="/guardrails" className="text-sm text-link hover:underline">All guardrails →</Link>
+      </div>
       <MsgNotice msg={error ? { text: error, ok: false } : msg} className="" />
     </div>
   );

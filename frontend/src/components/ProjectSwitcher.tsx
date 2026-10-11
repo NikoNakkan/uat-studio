@@ -17,7 +17,7 @@ function announceAndGo(path: string) {
  * The project switcher: which app under test this window works on. Each project has its own folder, accounts,
  * login, tests, app map, switches and runs; a run keeps its project even when you switch while it runs.
  */
-export function ProjectSwitcher() {
+export function ProjectSwitcher({ compact = false }: { compact?: boolean }) {
   const q = useProjects();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'list' | 'new' | 'rename'>('list');
@@ -63,14 +63,15 @@ export function ProjectSwitcher() {
   return (
     <div ref={box} className="relative px-2 pb-2">
       <button type="button" onClick={() => { setOpen(!open); setMode('list'); setMsg(''); }} aria-expanded={open} aria-haspopup="dialog"
-        className="flex w-full items-center gap-2 rounded-md border border-rail-line bg-rail-hover px-2.5 py-2 text-left text-rail-ink hover:border-accent">
+        title={compact ? `Project: ${current?.name ?? ''}` : undefined}
+        className={`flex w-full items-center gap-2 rounded-md border border-rail-line bg-rail-hover px-2.5 py-2 text-left text-rail-ink hover:border-accent ${compact ? 'md:justify-center md:px-0' : ''}`}>
         <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center bg-accent text-[11px] font-bold text-accent-ink">
           {(current?.name ?? '?').slice(0, 2).toUpperCase()}</span>
-        <span className="min-w-0 flex-1">
+        <span className={`min-w-0 flex-1 ${compact ? 'md:sr-only' : ''}`}>
           <span className="block text-[10px] uppercase tracking-wide text-rail-muted">Project</span>
           <span className="block truncate text-sm font-semibold">{q.isPending ? 'Loading…' : current?.name ?? 'No project'}</span>
         </span>
-        <span aria-hidden className="text-rail-muted">▾</span>
+        <span aria-hidden className={`text-rail-muted ${compact ? 'md:hidden' : ''}`}>▾</span>
       </button>
 
       {open && place && createPortal(

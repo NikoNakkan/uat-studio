@@ -37,7 +37,7 @@ def get_app_map():
     return {"text": text, "data": yaml.safe_load(text) if text else None}
 
 
-EDITABLE = ["guardrails.yaml", "strictness.yaml", "signoff.yaml", "screen-compare.yaml",
+EDITABLE = ["strictness.yaml", "signoff.yaml", "screen-compare.yaml",
             "test-check-rules.yaml", "excel-template.yaml", "workflow.yaml"]
 
 

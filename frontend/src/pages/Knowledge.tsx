@@ -66,7 +66,7 @@ function AppMap() {
 
 function Config() {
   const list = useQuery({ queryKey: ['config'], queryFn: () => api.get<{ name: string }[]>('/api/kit/config') });
-  const [name, setName] = useState('guardrails.yaml');
+  const [name, setName] = useState('strictness.yaml');
   return (
     <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
       <Card title="Files">
@@ -75,7 +75,7 @@ function Config() {
             <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-link hover:underline'}`} onClick={() => setName(f.name)}>{f.name}</button></li>
           ))}</ul>
         </QueryGate>
-        <p className="mt-3 text-xs text-muted">Feature switches are changed on their own page.</p>
+        <p className="mt-3 text-xs text-muted">Guardrails and feature switches are changed on their own pages.</p>
       </Card>
       <TextFileEditor key={name} url={`/api/kit/config/${name}`} title={`config/${name}`} rows={28} small
         savedNote="Saved. Run the kit self-tests on the Settings page after changing rules." />

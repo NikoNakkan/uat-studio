@@ -107,8 +107,10 @@ def test_clarify_without_api_key_waits_for_the_person(client, kit_dir):
 
 def test_knowledge_endpoints(client):
     assert "Glossary" in client.get("/api/kit/glossary").json()["text"]
-    assert any(c["name"] == "guardrails.yaml" for c in client.get("/api/kit/config").json())
-    assert client.put("/api/kit/config/guardrails.yaml", json={"text": "a: [unclosed"}).status_code == 400
+    names = [c["name"] for c in client.get("/api/kit/config").json()]
+    assert "strictness.yaml" in names and "guardrails.yaml" not in names          # guardrails have their own page
+    assert client.put("/api/kit/config/strictness.yaml", json={"text": "a: [unclosed"}).status_code == 400
+    assert client.put("/api/kit/config/guardrails.yaml", json={"text": "a: 1"}).status_code == 400
     assert client.put("/api/kit/config/profile.yaml", json={"text": "switched_off: []"}).status_code == 400
     assert any(a["name"] == "playwright-test-planner" for a in client.get("/api/kit/agents").json())
     assert len(client.get("/api/kit/skills").json()) >= 17

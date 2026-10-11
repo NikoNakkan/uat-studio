@@ -1,11 +1,10 @@
-"""Setting up a machine and an app: requirement checks and fixes, allowed sites, login setup, the Excel in use."""
+"""Setting up a machine and an app: requirement checks and fixes, login setup, the Excel in use."""
 from __future__ import annotations
 
 import asyncio
 import re
 from pathlib import Path
 
-import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -48,24 +47,6 @@ async def setup_fix(body: FixIn):
         r = await kit.run_command(cmd, on_line=lambda line: bus.emit("app", "script_line", stage="setup", text=line))
         bus.emit("app", "script_end", stage="setup", code=r.code, text=r.output[-3000:])
     return {"code": r.code, "output": r.output[-6000:]}
-
-
-class OriginsIn(BaseModel):
-    origins: list[str]
-
-
-@router.put("/guardrails/origins")
-def put_origins(body: OriginsIn):
-    p = kit.KIT_DIR / "config" / "guardrails.yaml"
-    text = p.read_text(encoding="utf-8")
-    origins = [o.rstrip("/") for o in body.origins if re.match(r"^https?://[^/\s]+$", o.rstrip("/"))]
-    if not origins:
-        raise HTTPException(400, "Give at least one site as scheme and host, e.g. https://test.app.example.com")
-    block = "allowed_origins:" + "".join(f"\n  - {o}" for o in origins)
-    text = re.sub(r"^allowed_origins:.*?(?=^\S)", block + "\n\n", text, count=1, flags=re.S | re.M)
-    yaml.safe_load(text)
-    p.write_text(text, encoding="utf-8")
-    return kit.guardrails().get("allowed_origins", [])
 
 
 login_task: dict[str, asyncio.Task] = {}
