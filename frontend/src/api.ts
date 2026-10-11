@@ -41,7 +41,7 @@ export type RunState = 'running' | 'waiting' | 'signed_off' | 'stopped' | 'finis
 export type RunSummary = { id: string; excel: string | null; created: string | null; strictness: string | null; cases: number;
   stages_done: number; stages_total: number; current: string | null; current_status: string | null;
   tests: number; passed: number; failed: number; sealed: boolean; results: boolean; running: boolean; waiting: number; state: RunState;
-  cost: number };
+  cost: number; screens: boolean; baseline: 'chosen' | 'latest' | null };
 export type RunDetail = { id: string; data: RunData; texts: Record<string, string>; folders: string[];
   stages: StageRow[]; running: boolean; pending: Interaction[]; results_ready: boolean; cost: RunCost };
 /** One line of a cost breakdown: a stage, agent or model, what it cost in US dollars and how many agent calls. */
@@ -73,5 +73,5 @@ export type Health = { ok: boolean; kit: string; kit_found: boolean; running: st
 /** What testing the app by hand costs: a person's hourly rate (null until entered) and the hours it takes. */
 export type Savings = { hourly_rate: number | null; manual_hours: number };
 export type Project = { id: string; name: string; dir: string; current: boolean; runs: number; running: string[]; created: string;
-  savings: Savings };
+  savings: Savings; baseline_run: string | null };
 export type Projects = { current: string; projects: Project[] };

@@ -2,7 +2,7 @@
 screens, sign-off."""
 from __future__ import annotations
 
-from . import agents, kit, pw_agents
+from . import agents, baseline, kit, pw_agents
 from .events import bus
 from .interactions import interactions
 from .llm import MissingApiKey
@@ -109,11 +109,12 @@ class TestStages(StageRunner):
         return "done", note
 
     async def stage_screens(self, c: Ctx):
-        r = await self.script(c, "compare_screens", c.rel)
+        base = baseline.for_run(c.run_id)
+        r = await self.script(c, "compare_screens", c.rel, *(["--baseline", base] if base else []))
         if "AI review: needed" in r.output and kit.is_on(c.stage_def("screens").get("agent_feature", "")):
             o = await agents.run_screen_reviewer(c.run_id, c.run, c.stage)
             await self.usage(c, "uat-screen-reviewer", o)
-        return "done", next((line for line in r.output.splitlines() if line.startswith(("Compared", "No signed-off"))), "")
+        return "done", next((line for line in r.output.splitlines() if line.startswith(("Compared", "No "))), "")
 
     async def stage_signoff(self, c: Ctx):
         sealed = (c.run / "manifest.json").exists()

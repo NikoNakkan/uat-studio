@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import accounts, costs, kit, signoff_reset
+from .. import accounts, baseline, costs, kit, signoff_reset
 from ..engine import engine
 from ..events import bus
 from ..interactions import interactions
@@ -70,7 +70,9 @@ def _summary(rid: str) -> dict:
 @router.get("/runs")
 def list_runs():
     """Every run of the current project, newest first, with what a list or a dashboard shows of it."""
-    return [_summary(rid) for rid in kit.list_runs()]
+    base, chosen = baseline.current()
+    return [{**_summary(rid), "screens": baseline.has_screens(rid),
+             "baseline": ("chosen" if chosen else "latest") if rid == base else None} for rid in kit.list_runs()]
 
 
 @router.post("/runs")

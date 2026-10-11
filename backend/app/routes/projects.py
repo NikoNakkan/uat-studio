@@ -23,6 +23,7 @@ def _project_rows() -> list[dict]:
         token = projects.use(p["id"])
         try:
             out.append({**p, "dir": str(projects.current_dir()), "current": p["id"] == current, "savings": projects.savings(p),
+                        "baseline_run": p.get("baseline_run"),
                         "runs": len(kit.list_runs()), "running": engine.running()})
         finally:
             projects.reset(token)
@@ -97,6 +98,24 @@ def set_savings(pid: str, body: SavingsIn):
         return projects.set_savings(pid, body.hourly_rate, body.manual_hours)
     except KeyError:
         raise HTTPException(404, "No such project") from None
+
+
+class BaselineIn(BaseModel):
+    run_id: str | None = None
+
+
+@router.put("/projects/{pid}/baseline")
+def set_baseline(pid: str, body: BaselineIn):
+    """The run new runs compare their screenshots with; none means the latest run that has screenshots."""
+    if not projects.get(pid):
+        raise HTTPException(404, "No such project")
+    token = projects.use(pid)
+    try:
+        if body.run_id is not None and body.run_id not in kit.list_runs():
+            raise HTTPException(400, f"No run {body.run_id} in this project.")
+    finally:
+        projects.reset(token)
+    return {"baseline_run": projects.set_baseline(pid, body.run_id)}
 
 
 @router.post("/projects/{pid}/sync")

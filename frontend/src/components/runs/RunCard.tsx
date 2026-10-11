@@ -7,6 +7,7 @@ import { QueryGate } from '../../ui';
 import { CostBreakdown } from '../run/CostView';
 import { STAGES } from '../run/stages';
 import { RunActions } from '../RunActions';
+import { BaselineBadge, BaselineButton } from './Baseline';
 import { stateOf, when } from './runState';
 
 /**
@@ -27,6 +28,7 @@ export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolea
             <Link to={`/runs/${r.id}`} className={`font-semibold hover:underline ${big ? 'text-lg' : ''}`}>{when(r.created, r.id)}</Link>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${state.badge}`}>
               {state.label}{r.waiting > 1 ? ` (${r.waiting})` : ''}</span>
+            <BaselineBadge run={r} />
             <span className="font-mono text-xs text-muted">{r.id}</span>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted">
@@ -59,6 +61,7 @@ export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolea
           {r.state === 'waiting' ? 'Answer' : r.state === 'finished' ? 'Sign off' : 'Open'}</Link>
         {r.results && <a href={`/api/runs/${r.id}/results.xlsx`} className="rounded-md border border-line px-3 py-1.5 font-medium hover:bg-surface-2">results.xlsx</a>}
         {r.cases > 0 && <a href={`/api/runs/${r.id}/clarified.xlsx`} className="rounded-md px-2 py-1.5 text-link hover:underline">Clarified Excel</a>}
+        <BaselineButton run={r} />
         <span className="ml-auto"><RunActions runId={r.id} running={r.running} sealed={r.sealed} size="small" /></span>
       </div>
     </article>

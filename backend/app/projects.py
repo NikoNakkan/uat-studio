@@ -115,14 +115,23 @@ def savings(p: dict) -> dict:
     return {"hourly_rate": s.get("hourly_rate"), "manual_hours": s.get("manual_hours", MANUAL_HOURS)}
 
 
-def set_savings(pid: str, hourly_rate: float | None, manual_hours: float) -> dict:
+def _set(pid: str, key: str, value) -> dict:
     data = _load()
     for p in data["projects"]:
         if p["id"] == pid:
-            p["savings"] = {"hourly_rate": hourly_rate, "manual_hours": manual_hours}
+            p[key] = value
             _save(data)
-            return savings(p)
+            return p
     raise KeyError(pid)
+
+
+def set_savings(pid: str, hourly_rate: float | None, manual_hours: float) -> dict:
+    return savings(_set(pid, "savings", {"hourly_rate": hourly_rate, "manual_hours": manual_hours}))
+
+
+def set_baseline(pid: str, run_id: str | None) -> str | None:
+    """The run new runs compare their screenshots with; None means the latest run that has screenshots."""
+    return _set(pid, "baseline_run", run_id).get("baseline_run")
 
 
 def _copy(src: Path, dst: Path) -> None:
