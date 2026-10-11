@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { Event } from '../api';
+import { readStored, writeStored } from '../lib/storage';
 import { useEvents, type LiveStatus } from '../lib/useEvents';
 import { Activity } from './Activity';
 
@@ -16,21 +17,29 @@ export function useLive() {
 }
 
 const COLLAPSED_KEY = 'uat-live-collapsed';
+const SEEN_KEY = 'uat-live-seen-at';
+/** What is worth a badge: what the agents say and ask, stage changes, errors. Not every tool step. */
+const NOTEWORTHY = new Set(['agent_text', 'waiting', 'stage', 'run', 'agent_error', 'finding']);
 
-function readCollapsed() {
-  try { return localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { return false; }
-}
-
-function writeCollapsed(v: boolean) {
-  try { localStorage.setItem(COLLAPSED_KEY, v ? '1' : '0'); } catch { /* private window: just not remembered */ }
+/**
+ * New is what arrived after the person last had the panel open, by time, remembered across reloads. Counting
+ * events instead made the whole history look new whenever it was replayed (page change, reload, new channel).
+ */
+export function unread(events: Event[], seenAt: number) {
+  const fresh = events.filter(e => e.ts * 1000 > seenAt && NOTEWORTHY.has(e.type));
+  return { count: fresh.length, question: fresh.some(e => e.type === 'waiting') };
 }
 
 export function LiveRail() {
   const { events, live, scope } = useLive();
-  const [collapsed, setCollapsed] = useState(readCollapsed);
-  const [seen, setSeen] = useState(events.length);          // events shown before collapsing: the rest are new
-  const toggle = (v: boolean) => { setCollapsed(v); writeCollapsed(v); setSeen(events.length); };
-  const fresh = Math.max(0, events.length - seen);
+  const [collapsed, setCollapsed] = useState(() => readStored(COLLAPSED_KEY) === '1');
+  const [seenAt, setSeenAt] = useState(() => Number(readStored(SEEN_KEY)) || Date.now());
+  const toggle = (hide: boolean) => {
+    const now = Date.now();
+    setCollapsed(hide); setSeenAt(now);
+    writeStored(COLLAPSED_KEY, hide ? '1' : '0'); writeStored(SEEN_KEY, String(now));
+  };
+  const fresh = unread(events, seenAt);
   const dot = live === 'live' ? 'bg-good' : 'animate-pulse bg-warn';
 
   if (collapsed) {
@@ -41,7 +50,8 @@ export function LiveRail() {
           <span aria-hidden className="text-muted lg:rotate-0">‹</span>
           <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
           <span className="font-semibold lg:[writing-mode:vertical-rl] lg:rotate-180">Live</span>
-          {fresh > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] font-medium text-accent-ink tnum" title={`${fresh} new since you hid it`}>{fresh > 99 ? '99+' : fresh}</span>}
+          {fresh.count > 0 && <span className={`rounded-full px-1.5 text-[11px] font-medium tnum ${fresh.question ? 'bg-warn text-white' : 'bg-accent text-accent-ink'}`}
+            title={fresh.question ? 'A question is waiting for you' : `${fresh.count} new since you last looked`}>{fresh.count > 99 ? '99+' : fresh.count}</span>}
         </button>
       </aside>
     );

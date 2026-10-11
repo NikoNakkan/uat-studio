@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { GROUPS, NAV, START, edgesOf, groupOf, layout, pathTo, title, type MapElement, type MapPage } from './appmap/graph';
 
 export type { MapElement, MapPage } from './appmap/graph';
@@ -10,6 +10,14 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
   const keys = useMemo(() => Object.keys(pages), [pages]);
   const { columns } = useMemo(() => layout(keys, edges), [keys, edges]);
   const [selected, setSelected] = useState<string>(() => keys.find(k => pathTo(k, edges).length === 1) ?? keys[0]);
+  const details = useRef<HTMLElement>(null);
+  const select = (key: string) => {
+    setSelected(key);
+    // Stacked layout (details below the map): bring the details into view. Side by side they are already visible.
+    if (!window.matchMedia('(min-width: 80rem)').matches) {
+      requestAnimationFrame(() => details.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+  };
 
   const pos: Record<string, { x: number; y: number }> = {};
   const tallest = Math.max(...columns.map(c => c.length));
@@ -26,7 +34,9 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
     ?? (e.role === 'link' && e.name ? edges.find(x => x.from === NAV && x.label.toLowerCase() === e.name!.toLowerCase())?.to : undefined);
 
   return (
-    <div className="grid gap-4">
+    // Wide screens: the map and the selected page side by side, the details always in view. Narrow screens: stacked,
+    // and choosing a page scrolls its details into view, so a click never changes something out of sight.
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
       <div className="overflow-x-auto rounded-lg border border-line bg-surface p-2">
         <svg width={width} height={height} role="img" aria-label="Pages of the app and how to get from one to another" className="block">
           <defs>
@@ -59,9 +69,9 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
             const actions = els.filter(e => groupOf(e) === 'actions').length, fields = els.filter(e => groupOf(e) === 'fields').length;
             const sel = k === selected;
             return (
-              <g key={k} transform={`translate(${p.x},${p.y})`} className={real ? 'cursor-pointer' : ''} onClick={() => real && setSelected(k)}
+              <g key={k} transform={`translate(${p.x},${p.y})`} className={real ? 'cursor-pointer' : ''} onClick={() => real && select(k)}
                 role={real ? 'button' : undefined} aria-label={real ? `MapPage ${title(k)}` : undefined} tabIndex={real ? 0 : undefined}
-                onKeyDown={e => real && (e.key === 'Enter' || e.key === ' ') && setSelected(k)}>
+                onKeyDown={e => real && (e.key === 'Enter' || e.key === ' ') && select(k)}>
                 <rect width={W} height={H} rx={10} className={sel ? 'fill-accent stroke-accent' : real ? 'fill-surface stroke-line' : 'fill-surface-2 stroke-line'}
                   strokeWidth={sel ? 2 : 1} strokeDasharray={real ? undefined : '4 3'} />
                 <text x={12} y={22} className={`text-[13px] font-semibold ${sel ? 'fill-accent-ink' : 'fill-ink'}`}>{title(k)}</text>
@@ -74,8 +84,10 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
       </div>
 
       {page && (
-        <div className="grid gap-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <aside ref={details} aria-label={`Page ${title(selected)}`} aria-live="polite"
+          className="grid scroll-mt-4 gap-4 rounded-lg border-2 border-accent bg-surface p-4 shadow-md xl:sticky xl:top-0 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">Selected page</div>
+          <div className="-mt-3 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-lg font-semibold">{title(selected)}</h3>
             {page.address && <a href={page.address} target="_blank" rel="noreferrer" className="font-mono text-sm text-link hover:underline">{page.address}</a>}
           </div>
@@ -88,13 +100,13 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
                   <span className="text-muted">→</span>
                   {e.from !== START && e.to !== NAV && <span className="rounded-md bg-accent px-2 py-0.5 font-medium text-accent-ink">click “{e.label}”</span>}
                   {e.from !== START && e.to !== NAV && <span className="text-muted">→</span>}
-                  <button type="button" onClick={() => e.to !== NAV && setSelected(e.to)} className="rounded-md bg-surface-2 px-2 py-0.5 hover:underline">{title(e.to)}</button>
+                  <button type="button" onClick={() => e.to !== NAV && select(e.to)} className="rounded-md bg-surface-2 px-2 py-0.5 hover:underline">{title(e.to)}</button>
                 </li>
               ))}
             </ol>
             {page.reached_by && <p className="mt-1 text-xs text-muted">As the planner wrote it: {page.reached_by}</p>}
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4">
             {[...GROUPS, { id: 'structure', label: 'Headings, regions, lists and dialogs', roles: /./ }].map(g => {
               const list = elements.filter(e => groupOf(e) === g.id);
               if (!list.length) return null;
@@ -110,7 +122,7 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
                           <span className={e.name ? 'font-medium' : 'text-muted'}>{e.name || e.control_name || '(no name)'}</span>
                           {e.example_text && <span className="text-muted">“{e.example_text}”</span>}
                           {e.test_id && <span className="font-mono text-[11px] text-muted">test id {e.test_id}</span>}
-                          {target && <button type="button" onClick={() => setSelected(target)} className="text-xs text-link hover:underline">opens {title(target)} →</button>}
+                          {target && <button type="button" onClick={() => select(target)} className="text-xs text-link hover:underline">opens {title(target)} →</button>}
                         </li>
                       );
                     })}
@@ -119,7 +131,7 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
               );
             })}
           </div>
-        </div>
+        </aside>
       )}
     </div>
   );

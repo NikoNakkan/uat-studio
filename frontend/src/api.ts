@@ -36,8 +36,11 @@ export type InteractionPayload = {
 export type Interaction = { id: string; channel: string; kind: string; title: string; payload: InteractionPayload; created: number };
 export type StageRow = { id: string; feature: string; on: boolean; agent?: string; does: string; stop_for_person?: string;
   status: string; note: string; at?: string };
-export type RunSummary = { id: string; excel: string; created: string; strictness: string; stages_done: number; stages_total: number;
-  current: string | null; tests: number; passed: number; sealed: boolean; results: boolean; running: boolean; waiting: number };
+/** Where a run stands, in one word (computed by the server). */
+export type RunState = 'running' | 'waiting' | 'signed_off' | 'stopped' | 'finished' | 'not_started';
+export type RunSummary = { id: string; excel: string | null; created: string | null; strictness: string | null; cases: number;
+  stages_done: number; stages_total: number; current: string | null; current_status: string | null;
+  tests: number; passed: number; failed: number; sealed: boolean; results: boolean; running: boolean; waiting: number; state: RunState };
 export type RunDetail = { id: string; data: RunData; texts: Record<string, string>; folders: string[];
   stages: StageRow[]; running: boolean; pending: Interaction[]; results_ready: boolean };
 export type Event = { seq: number; ts: number; type: string; stage?: string; agent?: string; tool?: string; script?: string;
@@ -59,3 +62,6 @@ export type SetupCheck = { ok: boolean; rows: SetupRow[]; output: string };
 export type Account = { name: string; label: string; user: string; user_set: boolean; password_set: boolean; used_by: string[] };
 export type EnvInfo = { env_exists: boolean; start_page: string; accounts: Account[]; allowed_origins: string[] };
 export type Health = { ok: boolean; kit: string; kit_found: boolean; running: string[]; project: string };
+
+export type Project = { id: string; name: string; dir: string; current: boolean; runs: number; running: string[]; created: string };
+export type Projects = { current: string; projects: Project[] };

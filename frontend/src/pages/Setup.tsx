@@ -74,7 +74,7 @@ export function SetupPage() {
           <div className="font-semibold">{allDone ? 'Ready to test' : 'Next: a test run'}</div>
           <div className="text-sm text-muted">{allDone ? 'Upload your Excel of test cases and start a run.' : 'Finish the steps above first.'}</div>
         </div>
-        <Link to="/" className={`rounded-md px-3 py-1.5 text-sm font-semibold ${allDone ? 'bg-accent text-accent-ink hover:brightness-95' : 'border border-line bg-surface text-muted'}`}>Go to test runs →</Link>
+        <Link to="/runs" className={`rounded-md px-3 py-1.5 text-sm font-semibold ${allDone ? 'bg-accent text-accent-ink hover:brightness-95' : 'border border-line bg-surface text-muted'}`}>Go to test runs →</Link>
       </div>
     </div>
   );

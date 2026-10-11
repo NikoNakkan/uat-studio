@@ -58,14 +58,14 @@ function RunHeader({ runId, r }: { runId: string; r: RunDetail }) {
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/" className="text-sm text-link hover:underline">← Test runs</Link>
+          <Link to="/runs" className="text-sm text-link hover:underline">← Test runs</Link>
           <h1 className="font-mono text-lg font-semibold">{r.id}</h1>
           <p className="text-sm text-muted">{prog.excel} · strictness {prog.strictness}{prog.excel_sha256 ? ` · SHA-256 ${prog.excel_sha256.slice(0, 12)}…` : ''}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!r.running && <Button kind="primary" busy={busy === 'start'} disabled={!!busy} onClick={() => act('start', () => api.post(`/api/runs/${runId}/start`))}>
             {busy === 'start' ? 'Starting…' : started ? 'Resume' : 'Start'}</Button>}
-          <RunActions runId={runId} running={r.running} sealed={!!r.data.manifest} onDeleted={() => navigate('/')} />
+          <RunActions runId={runId} running={r.running} sealed={!!r.data.manifest} onDeleted={() => navigate('/runs')} />
           {!r.running && failedStage && <Button busy={busy === 'retry'} disabled={!!busy} onClick={() => act('retry', () => api.post(`/api/runs/${runId}/retry`, { stage: failedStage.id }))}>
             {busy === 'retry' ? 'Retrying…' : `Retry "${STAGES[failedStage.id]?.title ?? failedStage.id}"`}</Button>}
           {r.data.cases && <a className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2" href={`/api/runs/${runId}/clarified.xlsx`}
