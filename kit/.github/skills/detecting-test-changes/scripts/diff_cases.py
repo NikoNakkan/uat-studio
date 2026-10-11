@@ -73,6 +73,10 @@ def write_md(run, changes):
                 bits.append("manual (performed by a person)")
             if not c.get("has_test", True) and status == "unchanged":
                 bits.append("no test file yet")
+            if c.get("has_test") and status in ("new", "changed"):
+                last = c.get("last_result")
+                bits.append("a test already exists" + (f" (last {last['result']} in run {last['run']})" if last else "")
+                            + ": reuse it or write it again")
             bits.append(f"decision: {c['decision'] or 'to confirm'}")
             out.append(f"- **{tid}** {c.get('title', '')}: " + "; ".join(bits))
         out.append("")
@@ -111,6 +115,17 @@ def decide(run, test_id, decision):
     return 0
 
 
+def last_result(run, tid):
+    """The newest earlier run's result for this test: {"run", "result"}, or None."""
+    for prev in sorted((p for p in run.parent.iterdir() if p.is_dir() and p.name < run.name), reverse=True):
+        progress = prev / "progress.json"
+        if progress.exists():
+            test = json.loads(progress.read_text(encoding="utf-8")).get("tests", {}).get(tid)
+            if test and test.get("result"):
+                return {"run": prev.name, "result": test["result"]}
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("run")
@@ -142,8 +157,10 @@ def main():
             if best[0] >= 0.85:
                 entry.update(similar_to=best[1], similarity=round(best[0], 3),
                              similar_is_missing=best[1] not in current)
-            else:
-                entry["decision"] = "generate"            # automatic: nothing similar to compare with
+            elif not entry["has_test"]:
+                entry["decision"] = "generate"            # automatic: nothing similar, and no test to lose
+            # else: a test for this id already exists (an earlier run that was not signed off): the person
+            # decides whether to reuse it or write it again; it is never rewritten without asking.
         else:
             changed = [f for f in FIELDS if text(case, f) != text(old, f)]
             if not changed:
@@ -154,6 +171,8 @@ def main():
                 entry["status"] = "changed"
                 entry["fields_changed"] = changed
                 entry["wording_only_candidate"] = all(loose(text(case, f)) == loose(text(old, f)) for f in changed)
+        if entry["has_test"] and entry["status"] in ("new", "changed"):
+            entry["last_result"] = last_result(run, tid)
         if is_manual(case):                               # a person performs it: nothing to confirm or generate
             entry["decision"], entry["manual"] = "manual", True
             entry.pop("similar_to", None)

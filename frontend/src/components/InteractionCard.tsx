@@ -30,6 +30,11 @@ export function InteractionCard({ item }: { item: Interaction }) {
         <div className="grid gap-2 text-sm">
           <p>Status: <b>{p.status}</b>{p.details?.fields_changed ? ` · fields: ${p.details.fields_changed.join(', ')}` : ''}
             {p.details?.similar_to ? ` · similar to ${p.details.similar_to}` : ''}</p>
+          {p.details?.has_test && (p.status === 'new' || p.status === 'changed') && (
+            <p className="rounded-md border border-line bg-surface-2/50 p-2">A test for this case already exists
+              {p.details.last_result ? <> (last <b>{p.details.last_result.result}</b> in run {p.details.last_result.run})</> : null}.
+              Reuse keeps it as it is; writing it again replaces it.</p>
+          )}
           {p.explanation && <p className="text-muted">{p.explanation}</p>}
           <Options options={p.options} recommended={p.suggestion} busy={busy} send={send} />
         </div>

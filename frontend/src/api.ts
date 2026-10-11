@@ -29,7 +29,7 @@ export type Question = { id: string; test_id?: string; text: string; recommended
 export type InteractionPayload = {
   agent?: string; questions?: Question[]; can_defer?: boolean;                     // question
   options?: string[]; suggestion?: string; explanation?: string; status?: string;  // change, proceed, setup
-  details?: { fields_changed?: string[]; similar_to?: string };
+  details?: { fields_changed?: string[]; similar_to?: string; has_test?: boolean; last_result?: { run: string; result: string } | null };
   reason?: string; tool?: string; input?: unknown;                                 // guard
   summary?: string; output?: string; text?: string;                                // repair, setup
 };

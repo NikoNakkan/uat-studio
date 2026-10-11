@@ -101,3 +101,19 @@ def test_runs_current_is_never_the_previous_run(kit):
     run = kit.intake("examples/expense-tracker-tests.xlsx")
     r = kit.run(DIFF, run, expect=0)
     assert "first run" in r.out
+
+
+def test_an_existing_test_is_never_rewritten_without_asking(kit):
+    """A new case whose test already exists (an earlier run that was not signed off) waits for the person."""
+    kit.excel("runs/first.xlsx", [case("TC-01")])
+    first = kit.intake("runs/first.xlsx")
+    kit.run(DIFF, first, expect=0)
+    kit.write_json(f"{first}/signoff.json", {"decisions": {}, "complete": True})
+    kit.write("tests/validation/TC-02-a-different-case.spec.ts", GOOD_TEST)
+    kit.excel("runs/second.xlsx", [case("TC-01"), case("TC-02", title="Archive an old receipt",
+                                                       steps="1. Click \"Archive\"", expected="1. The list shows \"Archived\"")])
+    second = kit.intake("runs/second.xlsx")
+    kit.run(DIFF, second, expect=0)
+    entry = kit.json(f"{second}/changes.json")["cases"]["TC-02"]
+    assert entry["status"] == "new" and entry["has_test"] is True and entry["decision"] is None
+    assert "a test already exists" in kit.read(f"{second}/changes.md")

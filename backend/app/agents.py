@@ -72,7 +72,10 @@ async def run_clarifier(channel: str, run: Path, case_ids: list[str], mismatches
                     if mismatches else "")
     prompt = (f"Run folder: runs/{run.name}. Strictness: {progress.get('strictness', 'standard')}.\n"
               f"Cases to clarify (changed or new, not manual): {', '.join(case_ids) or 'none'}.\n"
-              "First confirm every case in changes.json whose decision is null (confirm_change).\n"
+              "First confirm every case in changes.json whose decision is null (confirm_change). When a case "
+              "already has a test (has_test, with last_result), suggest reuse: rewriting costs time and a test "
+              "that fails because of an app bug must stay as it is. Suggest writing it again only when the case "
+              "changed in a way the existing test cannot cover.\n"
               "Then read cases.json and clarify the listed cases with ask_person, recording every answer.\n"
               + planner_part
               + "\nThe Excel is the requirement. Never ask whether the app or the test case is right, and never change "
