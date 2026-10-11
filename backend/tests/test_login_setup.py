@@ -1,7 +1,7 @@
 """Login setup starts from the test cases and Studio's own account status, not from questions or repo files."""
 import time
 
-from app import kit, pw_agents
+from app import accounts, kit, pw_agents
 from app.routes.setup import login_task
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -13,7 +13,7 @@ def test_login_setup_reads_the_test_cases(client, kit_dir):
         r = client.post("/api/setup/login", files={"file": ("cases.xlsx", f, XLSX)})
     assert r.status_code == 200, r.text
     assert kit.read_json(kit.runs_dir() / "setup" / "cases.json")        # the Excel was read
-    source, cases = kit.latest_cases()                                    # a run's cases come first
+    source, cases = accounts.latest_cases()                                    # a run's cases come first
     assert cases and source
     prompt = pw_agents.login_prompt()
     assert cases[0]["test_id"] in prompt and "Look first" in prompt
@@ -28,7 +28,7 @@ def test_login_setup_reads_the_test_cases(client, kit_dir):
 def test_accounts_say_filled_or_missing_and_who_uses_them(client):
     client.post("/api/env/accounts", json={"label": "Auditor test account"})
     client.put("/api/env", json={"key": "AUDITOR_TEST_ACCOUNT_USER", "value": "auditor@example.test"})
-    acc = {a["name"]: a for a in kit.accounts_overview([{"test_id": "TC-09", "login_as": "Auditor test account"}])}
+    acc = {a["name"]: a for a in accounts.accounts_overview([{"test_id": "TC-09", "login_as": "Auditor test account"}])}
     assert acc["AUDITOR_TEST_ACCOUNT"]["user_set"] and not acc["AUDITOR_TEST_ACCOUNT"]["password_set"]
     assert acc["AUDITOR_TEST_ACCOUNT"]["label"] == "Auditor test account"
     assert acc["AUDITOR_TEST_ACCOUNT"]["user"] == "auditor@example.test"

@@ -9,7 +9,7 @@ import yaml
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import kit, projects
+from .. import accounts, kit, projects
 from ..events import bus
 from ..interactions import interactions
 from ..llm import MissingApiKey
@@ -123,7 +123,7 @@ async def stop_login_setup():
 def latest_excel():
     """The Excel Studio already has (newest run's, or the one given to login setup): its name, where it came
     from and how many cases it has. A new run can reuse it, and the login agent reads it."""
-    s = kit.cases_source()
+    s = accounts.cases_source()
     return {"source": s["source"], "excel": s["excel"], "cases": len(s["cases"]),
             "reusable": bool(s["xlsx"] and s["xlsx"].exists()),
             "accounts": sorted({c["login_as"] for c in s["cases"] if c.get("login_as")})}

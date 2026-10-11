@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import kit
+from . import accounts, kit
 from .agents import APP_NOTE, STR, ask_person_tool, obj, read_tools, script_output
 from .llm import Tool, ToolResult, run_agent
 from .mcp_bridge import load_agent_file, load_skill, playwright_server, playwright_tools
@@ -195,11 +195,11 @@ async def run_login_setup(channel: str = "app"):
 def login_prompt() -> str:
     """What the login agent starts from: the app, its accounts and the test cases, so it asks only what none
     of them tells (the tester may have no repository; everything here comes from Studio)."""
-    source, cases = kit.latest_cases()
-    accounts = kit.accounts_overview(cases)
-    start = kit.env_values().get("START_PAGE", "") or "(not set: say so and stop)"
+    source, cases = accounts.latest_cases()
+    overview = accounts.accounts_overview(cases)
+    start = accounts.env_values().get("START_PAGE", "") or "(not set: say so and stop)"
     lines = []
-    for a in accounts:
+    for a in overview:
         filled = "user name and password filled in" if a["user_set"] and a["password_set"] else \
             "MISSING " + " and ".join(p for p, ok in (("user name", a["user_set"]), ("password", a["password_set"])) if not ok)
         used = f"; used by {', '.join(a['used_by'])}" if a["used_by"] else ""

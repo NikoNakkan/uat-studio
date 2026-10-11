@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from .. import kit
+from .. import accounts, kit
 
 router = APIRouter()
 
@@ -17,14 +17,14 @@ def _env_path() -> Path:
 
 
 def _env_values() -> dict[str, str]:
-    return kit.env_values()
+    return accounts.env_values()
 
 
 @router.get("/env")
 def get_env():
     values = _env_values()
-    accounts = kit.accounts_overview(kit.latest_cases()[1])
-    return {"env_exists": _env_path().exists(), "start_page": values.get("START_PAGE", ""), "accounts": accounts,
+    overview = accounts.accounts_overview(accounts.latest_cases()[1])
+    return {"env_exists": _env_path().exists(), "start_page": values.get("START_PAGE", ""), "accounts": overview,
             "allowed_origins": kit.guardrails().get("allowed_origins", [])}
 
 
@@ -50,8 +50,8 @@ def _write_env(key: str, value: str) -> None:
 @router.put("/env")
 def put_env(body: EnvIn):
     """Write one value into .env. Passwords are never sent back. A saved user name is, so Setup can show who it is."""
-    accounts = kit.env_example_accounts()
-    allowed = {"START_PAGE", "UAT_SESSION_MAX_AGE_MIN"} | {f"{a}_{s}" for a in accounts for s in ("USER", "PASSWORD")}
+    names = accounts.env_example_accounts()
+    allowed = {"START_PAGE", "UAT_SESSION_MAX_AGE_MIN"} | {f"{a}_{s}" for a in names for s in ("USER", "PASSWORD")}
     if body.key not in allowed:
         raise HTTPException(400, "Unknown setting")
     _write_env(body.key, body.value)
@@ -64,10 +64,10 @@ class AccountValuesIn(BaseModel):
 
 
 def _known_account(name: str) -> str:
-    key = kit.account_key(name)
+    key = accounts.account_key(name)
     if not re.fullmatch(r"[A-Z0-9_]+", key):
         raise HTTPException(400, "Unknown account")
-    known = set(kit.env_example_accounts()) | {k[:-5] for k in kit.env_values() if k.endswith("_USER")}
+    known = set(accounts.env_example_accounts()) | {k[:-5] for k in accounts.env_values() if k.endswith("_USER")}
     if key not in known:
         raise HTTPException(400, "Unknown account. Add the person first.")
     return key
@@ -82,12 +82,12 @@ def put_account(name: str, body: AccountValuesIn):
         raise HTTPException(400, "Enter the user.")
     password = body.password
     if not password:
-        password = kit.env_values().get(f"{key}_PASSWORD", "")
+        password = accounts.env_values().get(f"{key}_PASSWORD", "")
         if not password:
             raise HTTPException(400, "Enter the password.")
     _write_env(f"{key}_USER", user)
     _write_env(f"{key}_PASSWORD", password)
-    return {"ok": True, "label": kit.account_label(key)}
+    return {"ok": True, "label": accounts.account_label(key)}
 
 
 @router.delete("/env/accounts/{name}")
@@ -114,4 +114,4 @@ def add_account(body: AccountIn):
     if created:
         text = text.rstrip() + f"\n{key}_USER=\n{key}_PASSWORD=\n"
         p.write_text(text + ("\n" if not text.endswith("\n") else ""), encoding="utf-8")
-    return {"key": key, "label": kit.account_label(key), "created": created}
+    return {"key": key, "label": accounts.account_label(key), "created": created}

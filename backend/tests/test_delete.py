@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from app import kit
+from app import kit, processes
 
 
 def new_run(client, kit_dir) -> str:
@@ -71,7 +71,7 @@ def test_stop_kills_the_command_and_its_children(tmp_path):
 
     def work():
         try:
-            kit._run_blocking([sys.executable, str(script)], 20, None)
+            processes._run_blocking([sys.executable, str(script)], 20, None)
         finally:
             done.set()
 

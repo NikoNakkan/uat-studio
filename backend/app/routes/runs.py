@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import kit
+from .. import accounts, kit
 from ..engine import engine
 from ..events import bus
 from ..interactions import interactions
@@ -65,7 +65,7 @@ async def create_run(file: UploadFile | None = File(None), strictness: str = For
         with tmp.open("wb") as f:
             shutil.copyfileobj(file.file, f)
     elif reuse == "latest":
-        src = kit.cases_source()
+        src = accounts.cases_source()
         if not src["xlsx"] or not src["xlsx"].exists():
             raise HTTPException(400, "There is no earlier Excel to reuse. Choose the Excel file.")
         tmp = Path(tempfile.mkdtemp()) / (src["excel"] or "test-cases.xlsx")
