@@ -49,16 +49,23 @@ export function SetupPage() {
       body: env.isError ? <Notice>{errorText(env.error)}</Notice> : env.data ? <AppUnderTest env={env.data} onSaved={envSaved} /> : <Loading />,
     },
     {
-      id: 'accounts', title: 'Test accounts', state: stateOf(accountsOk, env.isPending),
-      summary: accounts.length ? accounts.map(accountSummary).join(' · ') : 'The people the Excel names in "Login as".',
-      body: env.data ? <Accounts env={env.data} onSaved={envSaved} /> : <Loading />,
-    },
-    {
-      id: 'login', title: 'How the tests log in',
-      state: login.pending ? 'todo' : loginWaiting ? 'waiting' : running ? 'current' : login.written ? 'done' : 'current',
+      // The accounts and how the tests log in with them: one step, since the login needs the accounts first.
+      id: 'accounts', title: 'Test accounts',
+      state: env.isPending || login.pending ? 'todo' : loginWaiting ? 'waiting' : running ? 'current'
+        : accountsOk && login.written ? 'done' : 'current',
       summary: loginWaiting ? 'The login agent asked you something. Answer below.' : running ? 'The login agent is working…'
-        : login.written ? 'tests/login.ts is written.' : 'The login agent writes tests/login.ts once, by looking at your login page.',
-      body: <Login running={running} written={login.written} />,
+        : [accounts.length ? accounts.map(accountSummary).join(' · ') : 'The people the Excel names in "Login as"',
+           login.written ? 'login written' : 'login not written yet'].join(' · '),
+      body: env.data ? (
+        <div className="grid gap-5">
+          <Accounts env={env.data} onSaved={envSaved} />
+          <section className="grid gap-2 border-t border-line pt-4">
+            <h3 className="font-semibold">How the tests log in</h3>
+            <p className="text-sm text-muted">{login.written ? 'tests/login.ts is written.' : 'The login agent writes tests/login.ts once, by looking at your login page, then proves each account above logs in.'}</p>
+            <Login running={running} written={login.written} />
+          </section>
+        </div>
+      ) : <Loading />,
     },
   ];
   const allDone = steps.every(s => s.state === 'done');
