@@ -41,8 +41,8 @@ class PrepareStages(StageRunner):
             if str(case.get("automation") or "").strip().lower() == "manual":
                 continue
             ch = changes.get(case["test_id"])
-            regenerate = ch is not None and ch.get("decision") == "regenerate" and not case.get("carried_from")
-            if ch is None or ch.get("status") in ("new", "changed") or regenerate:
+            write = ch is not None and ch.get("decision") in ("generate", "regenerate") and not case.get("carried_from")
+            if ch is None or ch.get("status") in ("new", "changed") or write:
                 out.append(case["test_id"])
         return out
 

@@ -47,7 +47,7 @@ async def run_clarifier(channel: str, run: Path, case_ids: list[str], mismatches
         entry = changes.get(a["test_id"])
         if entry is None:
             return ToolResult("No such case in changes.json.", is_error=True)
-        options = {"changed": ["reuse", "regenerate"], "new": ["regenerate", "reuse"],
+        options = {"changed": ["reuse", "regenerate"], "new": ["generate", "reuse"],
                    "missing": ["remove", "keep"], "unchanged": ["reuse", "regenerate"]}[entry["status"]]
         answer = await interactions.ask(channel, "change", f"{a['test_id']}: {entry['status']} case",
                                         test_id=a["test_id"], status=entry["status"], details=entry,
