@@ -22,7 +22,7 @@ export function GuardrailsPage() {
         <p className="text-sm text-muted">What the agents may never do while they test this app. Checked before every action an agent takes; a change applies to the next one.</p>
       </div>
       <QueryGate pending={q.isPending} error={q.isError ? q.error : null} label="Loading the guardrails…">
-        {q.data && <GuardrailsForm key={JSON.stringify(q.data.settings)} data={q.data} />}
+        {q.data && <GuardrailsForm data={q.data} />}
       </QueryGate>
     </div>
   );
@@ -36,15 +36,24 @@ function GuardrailsForm({ data }: { data: GuardrailsData }) {
   const set = <K extends keyof GuardrailSettings>(key: K) => (value: GuardrailSettings[K]) => { setG(s => ({ ...s, [key]: value })); setMsg(null); };
   const changed = JSON.stringify(g) !== JSON.stringify(data.settings);
   const save = () => run('save', async () => {
-    await api.put('/api/guardrails', g);
+    setG(await api.put<GuardrailSettings>('/api/guardrails', g));      // as saved: trimmed, .env kept
     await qc.invalidateQueries({ queryKey: ['guardrails'] });
     await qc.invalidateQueries({ queryKey: ['env'] });
     setMsg(ok('Saved. The next agent action is checked against these rules.'));
   });
   const custom = g.blocked_tools.filter(t => !(t in data.known_tools));
   const toggleTool = (tool: string, on: boolean) => set('blocked_tools')(on ? [...g.blocked_tools, tool] : g.blocked_tools.filter(t => t !== tool));
+  const actions = (
+    <div className="flex flex-wrap items-center gap-3">
+      <Button kind="primary" busy={busy === 'save'} disabled={!changed || !!busy} onClick={save}>{busy ? 'Saving…' : 'Save guardrails'}</Button>
+      {changed && <><Button disabled={!!busy} onClick={() => setG(data.settings)}>Undo changes</Button>
+        <span className="text-sm text-warn">Not saved yet</span></>}
+      <MsgNotice msg={error ? { text: error, ok: false } : msg} className="" />
+    </div>
+  );
   return (
     <div className="grid gap-4">
+      {actions}
       <Card title="Browser">
         <div className="grid gap-5">
           <ListEditor label="Sites the browser may open" mono items={g.allowed_origins} onChange={set('allowed_origins')}
@@ -83,11 +92,7 @@ function GuardrailsForm({ data }: { data: GuardrailsData }) {
             hint="Paths inside the project. Refused with any file tool or command." />
         </div>
       </Card>
-      <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-line bg-bg py-3">
-        <Button kind="primary" busy={busy === 'save'} disabled={!changed || !!busy} onClick={save}>{busy ? 'Saving…' : 'Save guardrails'}</Button>
-        {changed && <Button disabled={!!busy} onClick={() => setG(data.settings)}>Undo changes</Button>}
-        <MsgNotice msg={error ? { text: error, ok: false } : msg} className="" />
-      </div>
+      {actions}
     </div>
   );
 }
