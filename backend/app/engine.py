@@ -72,6 +72,7 @@ class Engine:
 
     def stop(self, run_id: str) -> None:
         interactions.cancel_channel(run_id)
+        kit.kill_owned(run_id)
         t = self.tasks.get(run_id)
         if t and not t.done():
             t.cancel()
@@ -89,7 +90,11 @@ class Engine:
     async def script(self, c: Ctx, name: str, *args: str, timeout: float | None = 900, stream: bool = False):
         bus.emit(c.run_id, "script_start", stage=c.stage, script=name, args=list(args))
         on_line = (lambda line: bus.emit(c.run_id, "script_line", stage=c.stage, script=name, text=line)) if stream else None
-        r = await kit.run_script(name, *args, timeout=timeout, on_line=on_line)
+        try:
+            r = await kit.run_script(name, *args, timeout=timeout, on_line=on_line)
+        except asyncio.CancelledError:
+            bus.emit(c.run_id, "script_end", stage=c.stage, script=name, code=130, text="(stopped)")
+            raise
         bus.emit(c.run_id, "script_end", stage=c.stage, script=name, code=r.code, text=r.output)
         return r
 
@@ -110,6 +115,10 @@ class Engine:
     # ---------------- the run ----------------
 
     async def _run(self, run_id: str) -> None:
+        with kit.script_owner(run_id):
+            await self._run_owned(run_id)
+
+    async def _run_owned(self, run_id: str) -> None:
         c = Ctx(run_id)
         bus.emit(run_id, "run", status="running")
         try:

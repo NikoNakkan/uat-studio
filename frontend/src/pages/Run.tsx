@@ -1,13 +1,13 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, runFile, type RunDetail, type StageRow } from '../api';
-import { Activity } from '../components/Activity';
+import { TestEvidence, isProblem } from '../components/Evidence';
 import { RunActions } from '../components/RunActions';
 import { Signoff } from '../components/Signoff';
 import { Stepper, type StepDef, type StepState } from '../components/Stepper';
 import { VisualRegression } from '../components/VisualRegression';
-import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Shot, Table, errorText, fail, inputCls, ok, useEvents, useTitle, type Msg } from '../ui';
+import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Shot, Table, errorText, fail, inputCls, ok, useTitle, type Msg } from '../ui';
 
 /** What each stage is called and what it is for, in words a test author uses. */
 const STAGES: Record<string, { title: string; about: string }> = {
@@ -39,7 +39,6 @@ export function RunPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const run = useQuery({ queryKey: ['run', runId], queryFn: () => api.get<RunDetail>(`/api/runs/${runId}`), refetchInterval: 5000 });
-  const { events, live } = useEvents(`/api/runs/${runId}/events`, [['run', runId], ['interactions']]);
   const [visualFocus, setVisualFocus] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [acting, setActing] = useState<string | null>(null);
@@ -68,7 +67,7 @@ export function RunPage() {
       case 'clarify': return d.cases ? <Changes r={r} /> : null;
       case 'planner_check': return r.texts['mismatches.md'] ? <Card title="Mismatches"><Pre>{r.texts['mismatches.md']}</Pre></Card> : null;
       case 'test_check': return d.test_check ? <TestsTab d={d} /> : null;
-      case 'run': return Object.keys(tests).length ? <Results runId={runId} d={d} tests={tests} onVisual={id => setVisualFocus(id)} /> : null;
+      case 'run': return Object.keys(tests).length ? <Results runId={runId} r={r} tests={tests} onVisual={id => setVisualFocus(id)} /> : null;
       case 'console_review': return d.console_new || r.texts['console.md'] ? <Console r={r} /> : null;
       case 'failures': return d.diagnoses ? <Failures r={r} /> : null;
       case 'screens': return d.screens ? <>
@@ -84,15 +83,13 @@ export function RunPage() {
     const meta = STAGES[s.id] ?? { title: s.id.replace(/_/g, ' '), about: s.does };
     const state = stageState(s, s.id === activeId && r.pending.length > 0);
     const out = output(s.id);
-    const chat = <Activity events={events} stage={s.id} live={live} />;
-    const active = state === 'current' || state === 'waiting' || state === 'failed';
     return {
       id: s.id, title: meta.title, state,
-      summary: state === 'waiting' ? 'Waiting for you. Answer in the conversation below.' : s.note || meta.about,
-      // While a stage works, its conversation comes first; once done, what it produced comes first.
-      body: active || !out
-        ? <>{chat}{out}</>
-        : <>{out}<details className="text-sm"><summary className="cursor-pointer text-muted">Conversation and steps of this stage</summary><div className="mt-2">{chat}</div></details></>,
+      summary: state === 'waiting' ? 'Waiting for you. Answer in the live panel.' : s.note || meta.about,
+      body: <>
+        {out}
+        {!out && <p className="text-sm text-muted">The agent and its commands are in the live panel.</p>}
+      </>,
     };
   });
 
@@ -129,11 +126,11 @@ function Cases({ d }: { d: Record<string, any> }) {
   return (
     <Card title={`${cases.length} test cases`}>
       {d.studio_validation?.output && <Pre className="mb-3 text-bad">{d.studio_validation.output}</Pre>}
-      <Table head={['Test ID', 'Group', 'Title', 'Login as', 'Steps', 'Expected results', 'State']} rows={cases.map(c => [
+      <Table resize={[12, 12, 14, 13, 16, 15, 18]} head={['Test ID', 'Group', 'Title', 'Login as', 'Steps', 'Expected results', 'State']} rows={cases.map(c => [
         <span className="font-mono">{c.test_id}</span>, c.group, c.title, c.login_as || '—',
         <ol className="list-decimal pl-4">{(c.steps ?? []).map((s: any) => <li key={s.n}>{s.text}</li>)}</ol>,
         <ul>{(c.expected_results ?? []).map((e: any, i: number) => <li key={i}><span className="text-muted tnum">{e.step}.</span> {e.text}</li>)}</ul>,
-        <div className="flex flex-wrap gap-1">
+        <div className="flex min-w-0 max-w-full flex-wrap gap-1 [&_span]:max-w-full [&_span]:min-w-0 [&_span]:whitespace-normal">
           {String(c.automation || '').toLowerCase() === 'manual' && <Pill value="MANUAL" label="manual" />}
           {c.clarified && <Pill value="done" label="clarified" />}
           {c.open_questions && <Pill value="waiting" label="open questions" />}
@@ -190,53 +187,53 @@ function TestsTab({ d }: { d: Record<string, any> }) {
   );
 }
 
-function Results({ runId, d, tests, onVisual }: { runId: string; d: Record<string, any>; tests: Record<string, any>; onVisual: (id: string) => void }) {
+function Results({ runId, r, tests, onVisual }: { runId: string; r: RunDetail; tests: Record<string, any>; onVisual: (id: string) => void }) {
+  const d = r.data;
   const screensOf = (id: string) => (d.screens?.pairs ?? d.screens?.flagged ?? []).filter((p: any) => p.test_id === id);
-  const [traceMsg, setTraceMsg] = useState<Msg>(null);
-  const [opening, setOpening] = useState<string | null>(null);
   const check = d.evidence_check?.tests ?? {};
-  const [pick, setPick] = useState<string | null>(null);
-  const t = pick ? tests[pick] : null;
-  const files = useQuery({ queryKey: ['files', runId, t?.evidence], queryFn: () => api.get<string[]>(`/api/runs/${runId}/files?folder=${encodeURIComponent(t!.evidence ?? 'evidence')}`), enabled: !!t });
-  const ids = Array.from(new Set([...Object.keys(tests), ...Object.keys(check)]));
+  const [open, setOpen] = useState<string | null>(null);
+  const titleOf = (id: string) => (d.cases ?? []).find((c: any) => c.test_id === id)?.title ?? '';
+  // Problems first, then the rest in Test ID order, so what needs a look is at the top.
+  const ids = Array.from(new Set([...Object.keys(tests), ...Object.keys(check)]))
+    .sort((a, b) => Number(isProblem(tests[b]?.result)) - Number(isProblem(tests[a]?.result)) || a.localeCompare(b, undefined, { numeric: true }));
   if (!ids.length) return <Empty>No results yet.</Empty>;
-  const mine = (files.data ?? []).filter(f => pick && (f.includes(`/${pick}-`) || f.includes(`${pick}-`) || f.toLowerCase().includes(pick.toLowerCase())));
+  const problems = ids.filter(id => isProblem(tests[id]?.result)).length;
   return (
-    <div className="grid gap-4">
-      <Card title="Results and evidence">
-        <Table head={['Test', 'Result', 'Recommendation', 'Screenshots', 'Trace', 'Visual', 'Why / missing']} rows={ids.map(id => [
-          <button className="font-mono text-accent hover:underline" onClick={() => setPick(id)}>{id}</button>,
-          <Pill value={tests[id]?.result ?? check[id]?.result ?? '-'} />,
-          check[id] ? <Pill value={check[id].recommendation} /> : '—',
-          check[id]?.screenshots ?? '—', check[id]?.trace ? 'yes' : '—',
-          screensOf(id).length ? <button className="text-accent hover:underline" onClick={() => onVisual(id)}>
-            {screensOf(id).filter((p: any) => p.status === 'changed' || p.changed_pixels).length} changed / {screensOf(id).length}</button> : '—',
-          <span className="text-xs">{[...(check[id]?.reasons ?? []), ...(check[id]?.missing ?? []), tests[id]?.error].filter(Boolean).join('; ')}</span>,
-        ])} />
-      </Card>
-      {pick && t && (
-        <Card title={`${pick} · evidence in ${t.evidence}`}>
-          <QueryGate pending={files.isPending} error={files.isError ? files.error : null} label="Loading evidence…">
-            {mine.some(f => f.endsWith('.png')) ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {mine.filter(f => f.endsWith('.png')).map(f => <Shot key={f} src={runFile(runId, f)} caption={f.split('/').pop() ?? f} mono />)}
-              </div>
-            ) : <Empty>No screenshots for this test.</Empty>}
-            <ul className="mt-3 grid gap-1 text-sm">
-              {(files.data ?? []).filter(f => /\.(zip|webm)$/.test(f)).filter(f => f.toLowerCase().includes(pick.toLowerCase())).map(f =>
-                <li key={f} className="flex flex-wrap items-center gap-2"><a className="text-accent hover:underline" href={runFile(runId, f)}>{f.endsWith('.zip') ? 'Trace' : 'Video'}: {f}</a>
-                  {f.endsWith('.zip') && <Button kind="ghost" busy={opening === f} disabled={!!opening} onClick={async () => {
-                    setOpening(f); setTraceMsg(null);
-                    try { await api.post(`/api/runs/${runId}/open-trace`, { path: f }); setTraceMsg(ok('The trace viewer opens in a new window on this machine.')); }
-                    catch (e) { setTraceMsg(fail(e)); }
-                    finally { setOpening(null); }
-                  }}>{opening === f ? 'Opening…' : 'Open in trace viewer'}</Button>}</li>)}
-            </ul>
-            <MsgNotice msg={traceMsg} />
-          </QueryGate>
-        </Card>
-      )}
-    </div>
+    <Card title={`Results and evidence · ${ids.length} tests${problems ? ` · ${problems} to look at` : ''}`}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b border-line text-left text-xs text-muted">
+            {['Test', 'Result', 'Recommendation', 'Screenshots', 'Visual', 'Why / missing', ''].map((h, i) => <th key={i} className="px-2 py-1.5 font-medium">{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {ids.map(id => {
+              const shown = open === id;
+              const changed = screensOf(id);
+              return (
+                <Fragment key={id}>
+                  <tr className={`border-b border-line/60 align-top ${isProblem(tests[id]?.result) ? 'bg-bad/5' : ''} ${shown ? 'bg-accent/5' : ''}`}>
+                    <td className="whitespace-nowrap px-2 py-1.5"><span className="font-mono">{id}</span>
+                      <div className="max-w-56 truncate text-xs text-muted" title={titleOf(id)}>{titleOf(id)}</div></td>
+                    <td className="px-2 py-1.5"><Pill value={tests[id]?.result ?? check[id]?.result ?? '-'} /></td>
+                    <td className="px-2 py-1.5">{check[id] ? <Pill value={check[id].recommendation} /> : '—'}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 tnum">{check[id]?.screenshots ?? '—'}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5">{changed.length
+                      ? <button className="text-accent hover:underline" onClick={() => onVisual(id)}>
+                          {changed.filter((p: any) => p.status === 'changed' || p.changed_pixels).length} changed of {changed.length}</button> : '—'}</td>
+                    <td className="px-2 py-1.5 text-xs">{[...(check[id]?.reasons ?? []), ...(check[id]?.missing ?? []), tests[id]?.error].filter(Boolean).join('; ')}</td>
+                    <td className="px-2 py-1.5 text-right">
+                      {tests[id]?.result && <Button kind={isProblem(tests[id]?.result) ? 'primary' : 'default'} onClick={() => setOpen(shown ? null : id)}>
+                        {shown ? 'Hide' : 'Evidence'}</Button>}
+                    </td>
+                  </tr>
+                  {shown && <tr><td colSpan={7} className="px-2 pb-3"><TestEvidence runId={runId} r={r} testId={id} /></td></tr>}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 

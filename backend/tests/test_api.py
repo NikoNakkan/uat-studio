@@ -41,6 +41,27 @@ def test_env_values_are_write_only(client, kit_dir):
     assert client.put("/api/env", json={"key": "PATH", "value": "x"}).status_code == 400
 
 
+def test_saving_an_account_shows_the_user_and_hides_the_password(client):
+    created = client.post("/api/env/accounts", json={"label": "Reception test account"}).json()
+    assert created["created"] and created["label"] == "Reception test account"
+    again = client.post("/api/env/accounts", json={"label": "Reception test account"}).json()
+    assert again["created"] is False
+    saved = client.put("/api/env/accounts/RECEPTION_TEST_ACCOUNT",
+                       json={"user": "reception@lumen.test", "password": "Harbor-Reception-1"})
+    assert saved.status_code == 200
+    acc = {a["name"]: a for a in client.get("/api/env").json()["accounts"]}["RECEPTION_TEST_ACCOUNT"]
+    assert acc["user"] == "reception@lumen.test" and acc["user_set"] and acc["password_set"]
+    assert "Harbor-Reception-1" not in json.dumps(client.get("/api/env").json())
+    kept = client.put("/api/env/accounts/RECEPTION_TEST_ACCOUNT", json={"user": "desk@lumen.test", "password": ""})
+    assert kept.status_code == 200
+    acc = {a["name"]: a for a in client.get("/api/env").json()["accounts"]}["RECEPTION_TEST_ACCOUNT"]
+    assert acc["user"] == "desk@lumen.test" and acc["password_set"]
+    assert client.delete("/api/env/accounts/RECEPTION_TEST_ACCOUNT").status_code == 200
+    acc = {a["name"]: a for a in client.get("/api/env").json()["accounts"]}["RECEPTION_TEST_ACCOUNT"]
+    assert acc["user"] == "" and not acc["user_set"] and not acc["password_set"]
+    assert client.put("/api/env/accounts/RECEPTION_TEST_ACCOUNT", json={"user": "", "password": "x"}).status_code == 400
+
+
 def test_guard_refuses_env_and_other_sites(kit_dir):
     from app import guard
     assert guard._decide_blocking("search/textSearch", {"query": ".env"})[0] == "deny"

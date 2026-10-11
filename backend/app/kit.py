@@ -6,11 +6,15 @@ re-implements them; it runs them exactly as the agents in VS Code would, and sho
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import importlib
 import json
 import os
+import signal
 import subprocess
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,34 +65,140 @@ class ScriptResult:
     command: str
 
 
+# Commands belong to whoever started them (a run id, or "app" for setup), so Stop can end the
+# process tree. Cancelling the asyncio task does not: the command runs in a thread, and on Windows
+# the handle we hold is only the shell, not npx or the browser under it.
+_owner: contextvars.ContextVar[str] = contextvars.ContextVar("uat_script_owner", default="")
+_owned: dict[str, set[subprocess.Popen]] = {}
+_stop_gen: dict[str, int] = {}
+_owned_lock = threading.Lock()
+
+
+def push_script_owner(name: str):
+    return _owner.set(name)
+
+
+def pop_script_owner(token) -> None:
+    _owner.reset(token)
+
+
+@contextlib.contextmanager
+def script_owner(name: str):
+    """Commands this task starts belong to `name` until the block ends."""
+    token = push_script_owner(name)
+    try:
+        yield
+    finally:
+        pop_script_owner(token)
+
+
+def _generation(owner: str) -> int:
+    with _owned_lock:
+        return _stop_gen.get(owner, 0)
+
+
+def _track(proc: subprocess.Popen) -> None:
+    owner = _owner.get()
+    if not owner:
+        return
+    with _owned_lock:
+        _owned.setdefault(owner, set()).add(proc)
+
+
+def _untrack(proc: subprocess.Popen) -> None:
+    owner = _owner.get()
+    if not owner:
+        return
+    with _owned_lock:
+        bucket = _owned.get(owner)
+        if not bucket:
+            return
+        bucket.discard(proc)
+        if not bucket:
+            _owned.pop(owner, None)
+
+
+def kill_owned(owner: str) -> int:
+    """End every command started for this owner, including children. Returns how many were alive."""
+    with _owned_lock:
+        _stop_gen[owner] = _stop_gen.get(owner, 0) + 1
+        procs = list(_owned.get(owner, ()))
+    return sum(1 for proc in procs if _kill_tree(proc))
+
+
+def _kill_tree(proc: subprocess.Popen) -> bool:
+    if proc.poll() is not None:
+        return False
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                proc.kill()
+            except OSError:
+                return False
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+            proc.wait(timeout=2)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return True
+
+
 def _popen_kwargs():
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-    return dict(cwd=KIT_DIR, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding="utf-8", errors="replace", shell=(os.name == "nt"))
+    kw = dict(cwd=KIT_DIR, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+              text=True, encoding="utf-8", errors="replace", shell=(os.name == "nt"))
+    if os.name == "nt":
+        kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kw["start_new_session"] = True
+    return kw
 
 
 def _run_blocking(cmd: list[str], timeout: float | None, on_line: Callable[[str], None] | None) -> ScriptResult:
     kwargs = _popen_kwargs()
+    owner = _owner.get()
+    seen = _generation(owner) if owner else 0
     if os.name == "nt":
         cmd_str = subprocess.list2cmdline(cmd)
         proc = subprocess.Popen(cmd_str, **kwargs)
     else:
         kwargs["shell"] = False
         proc = subprocess.Popen(cmd, **kwargs)
-    lines = []
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        line = line.rstrip("\n")
-        lines.append(line)
-        if on_line:
-            on_line(line)
+    _track(proc)
     try:
-        code = proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        code = 124
-        lines.append(f"(stopped after {timeout} seconds)")
-    return ScriptResult(code, "\n".join(lines), " ".join(cmd))
+        if owner and _generation(owner) != seen:
+            _kill_tree(proc)
+            return ScriptResult(130, "(stopped)", " ".join(cmd))
+        lines: list[str] = []
+        assert proc.stdout is not None
+        try:
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                lines.append(line)
+                if on_line:
+                    on_line(line)
+        except OSError:
+            pass
+        try:
+            code = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill_tree(proc)
+            code = 124
+            lines.append(f"(stopped after {timeout} seconds)")
+        return ScriptResult(code, "\n".join(lines), " ".join(cmd))
+    finally:
+        _untrack(proc)
 
 
 async def run_script(name: str, *args: str, timeout: float | None = 900,
@@ -178,10 +288,26 @@ def features_module():
     return features
 
 
+_switches: dict = {"key": None, "ids": set(), "on": set()}
+
+
+def _mtime(rel: str) -> float:
+    try:
+        return (KIT_DIR / rel).stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def is_on(feature_id: str) -> bool:
-    f = features_module()
-    items = f.load_items()
-    return feature_id not in items or feature_id in f.effective_on(items, f.load_off())
+    """Whether a part is switched on. Parsing the feature map took about 0.45 s, and a run page asked once per
+    stage on every refresh (5 s per refresh, queuing every other request), so the answer is kept until
+    config/features.yaml or config/profile.yaml changes on disk."""
+    key = (_mtime("config/features.yaml"), _mtime("config/profile.yaml"))
+    if _switches["key"] != key:
+        f = features_module()
+        items = f.load_items()
+        _switches.update(key=key, ids=set(items), on=set(f.effective_on(items, f.load_off())))
+    return feature_id not in _switches["ids"] or feature_id in _switches["on"]
 
 
 def guardrails() -> dict:
@@ -215,6 +341,14 @@ def account_key(name: str) -> str:
     return re.sub(r"[^A-Z0-9]+", "_", str(name or "").upper()).strip("_")
 
 
+def account_label(name: str) -> str:
+    """'EMPLOYEE_TEST_ACCOUNT' -> 'Employee test account'."""
+    words = [w for w in str(name or "").split("_") if w]
+    if not words:
+        return name
+    return " ".join([words[0].capitalize(), *(w.lower() for w in words[1:])])
+
+
 def latest_cases() -> tuple[str, list[dict]]:
     """The newest test cases Studio has read: from the newest run, else the Excel given to login setup."""
     for run_id in list_runs():
@@ -234,5 +368,6 @@ def accounts_overview(cases: list[dict]) -> list[dict]:
         if c.get("login_as"):
             used.setdefault(account_key(c["login_as"]), []).append(c.get("test_id", "?"))
     names = list(dict.fromkeys([*env_example_accounts(), *(k[:-5] for k in values if k.endswith("_USER")), *used]))
-    return [{"name": n, "user_set": bool(values.get(f"{n}_USER")), "password_set": bool(values.get(f"{n}_PASSWORD")),
+    return [{"name": n, "label": account_label(n), "user": values.get(f"{n}_USER", ""),
+             "user_set": bool(values.get(f"{n}_USER")), "password_set": bool(values.get(f"{n}_PASSWORD")),
              "used_by": used.get(n, [])} for n in names]

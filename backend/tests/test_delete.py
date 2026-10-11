@@ -1,4 +1,8 @@
 """A run can always be stopped and deleted; a signed-off run only with an explicit confirmation."""
+import os
+import subprocess
+import sys
+
 from app import kit
 
 
@@ -34,3 +38,58 @@ def test_only_run_folders_can_be_deleted(client):
 
 def test_login_setup_can_always_be_stopped(client):
     assert client.post("/api/setup/login/stop").json() == {"running": False}
+
+
+def _alive(pid: int) -> bool:
+    if os.name == "nt":
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True)
+        return str(pid) in out.stdout
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def test_stop_kills_the_command_and_its_children(tmp_path):
+    """Stop has to end the shell and the program under it. Cancelling the task used to leave both running."""
+    import contextvars
+    import threading
+    import time
+
+    pidfile = tmp_path / "child.pid"
+    script = tmp_path / "sleeper.py"
+    script.write_text(
+        "import pathlib, subprocess, sys, time\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        f"pathlib.Path({str(pidfile)!r}).write_text(str(child.pid))\n"
+        "time.sleep(60)\n",
+        encoding="utf-8",
+    )
+    token = kit.push_script_owner("stop-test")
+    done = threading.Event()
+
+    def work():
+        try:
+            kit._run_blocking([sys.executable, str(script)], 20, None)
+        finally:
+            done.set()
+
+    thread = threading.Thread(target=contextvars.copy_context().run, args=(work,))
+    thread.start()
+    try:
+        deadline = time.time() + 8
+        while time.time() < deadline and not pidfile.exists():
+            time.sleep(0.05)
+        assert pidfile.exists(), "the command never started"
+        child = int(pidfile.read_text())
+        assert kit.kill_owned("stop-test") >= 1
+        assert done.wait(8), "the command kept running after stop"
+        deadline = time.time() + 5
+        while time.time() < deadline and _alive(child):
+            time.sleep(0.1)
+        assert not _alive(child)
+    finally:
+        kit.kill_owned("stop-test")
+        kit.pop_script_owner(token)
+        thread.join(3)

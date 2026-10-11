@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import shutil
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -162,7 +164,9 @@ def get_run(run_id: str):
 
 
 @router.post("/runs/{run_id}/start")
-def start_run(run_id: str):
+async def start_run(run_id: str):
+    """Start or resume a run. Async on purpose: engine.start creates a task on the server's event loop, which a
+    plain def endpoint (run on a worker thread) does not have: Resume failed with "no running event loop"."""
     _run_or_404(run_id)
     try:
         engine.start(run_id)
@@ -172,9 +176,31 @@ def start_run(run_id: str):
 
 
 @router.post("/runs/{run_id}/stop")
-def stop_run(run_id: str):
-    engine.stop(run_id)
-    return {"running": False}
+async def stop_run(run_id: str):
+    await engine.stop_and_wait(run_id, timeout=10)
+    return {"running": engine.is_running(run_id)}
+
+
+async def _delete_tree(path: Path) -> None:
+    """Remove a run folder. A browser or test can keep a file locked for a moment after Stop kills it."""
+    def once() -> None:
+        def onerror(func, p, exc):
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        shutil.rmtree(path, onerror=onerror)
+
+    last: OSError | None = None
+    for _ in range(8):
+        try:
+            await asyncio.to_thread(once)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as e:
+            last = e
+            await asyncio.sleep(0.3)
+    raise HTTPException(409, "Some files are still in use (a browser or test may still be closing). "
+                         f"Try again in a moment. ({last})") from None
 
 
 @router.delete("/runs/{run_id}")
@@ -191,11 +217,7 @@ async def delete_run(run_id: str, signed_off: bool = False):
         raise HTTPException(409, "This run is signed off: its record is sealed evidence. Confirm deleting a signed-off run.")
     if not await engine.stop_and_wait(run_id):
         raise HTTPException(409, "The run is still stopping. Try again in a moment.")
-    try:
-        await asyncio.to_thread(shutil.rmtree, p)
-    except OSError as e:
-        raise HTTPException(409, "Some files are still in use (a browser or test may still be closing). "
-                                 f"Try again in a moment. ({e})") from None
+    await _delete_tree(p)
     engine.tasks.pop(run_id, None)
     bus.forget(run_id)
     return {"deleted": run_id}
@@ -499,7 +521,8 @@ def _parse_setup(output: str) -> list[dict]:
 
 @router.get("/setup")
 async def setup_check():
-    r = await kit.run_script("check_setup")
+    with kit.script_owner("app"):
+        r = await kit.run_script("check_setup")
     return {"ok": r.code == 0, "rows": _parse_setup(r.output), "output": r.output}
 
 
@@ -512,9 +535,10 @@ async def setup_fix(body: FixIn):
     cmd = kit.FIX_COMMANDS.get(body.id)
     if not cmd:
         raise HTTPException(400, "Unknown fix")
-    bus.emit("app", "script_start", stage="setup", script=" ".join(cmd))
-    r = await kit.run_command(cmd, on_line=lambda line: bus.emit("app", "script_line", stage="setup", text=line))
-    bus.emit("app", "script_end", stage="setup", code=r.code, text=r.output[-3000:])
+    with kit.script_owner("app"):
+        bus.emit("app", "script_start", stage="setup", script=" ".join(cmd))
+        r = await kit.run_command(cmd, on_line=lambda line: bus.emit("app", "script_line", stage="setup", text=line))
+        bus.emit("app", "script_end", stage="setup", code=r.code, text=r.output[-3000:])
     return {"code": r.code, "output": r.output[-6000:]}
 
 
@@ -539,24 +563,69 @@ class EnvIn(BaseModel):
     value: str
 
 
-@router.put("/env")
-def put_env(body: EnvIn):
-    """Write one value into .env. Values are never sent back (except START_PAGE)."""
-    accounts = kit.env_example_accounts()
-    allowed = {"START_PAGE", "UAT_SESSION_MAX_AGE_MIN"} | {f"{a}_{s}" for a in accounts for s in ("USER", "PASSWORD")}
-    if body.key not in allowed:
-        raise HTTPException(400, "Unknown setting")
-    if "\n" in body.value or "\r" in body.value:
+def _write_env(key: str, value: str) -> None:
+    if "\n" in value or "\r" in value:
         raise HTTPException(400, "One line only")
     p = _env_path()
     lines = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
     for n, line in enumerate(lines):
-        if re.match(rf"^\s*{body.key}\s*=", line):
-            lines[n] = f"{body.key}={body.value}"
+        if re.match(rf"^\s*{re.escape(key)}\s*=", line):
+            lines[n] = f"{key}={value}"
             break
     else:
-        lines.append(f"{body.key}={body.value}")
+        lines.append(f"{key}={value}")
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@router.put("/env")
+def put_env(body: EnvIn):
+    """Write one value into .env. Passwords are never sent back. A saved user name is, so Setup can show who it is."""
+    accounts = kit.env_example_accounts()
+    allowed = {"START_PAGE", "UAT_SESSION_MAX_AGE_MIN"} | {f"{a}_{s}" for a in accounts for s in ("USER", "PASSWORD")}
+    if body.key not in allowed:
+        raise HTTPException(400, "Unknown setting")
+    _write_env(body.key, body.value)
+    return {"ok": True}
+
+
+class AccountValuesIn(BaseModel):
+    user: str = ""
+    password: str = ""
+
+
+def _known_account(name: str) -> str:
+    key = kit.account_key(name)
+    if not re.fullmatch(r"[A-Z0-9_]+", key):
+        raise HTTPException(400, "Unknown account")
+    known = set(kit.env_example_accounts()) | {k[:-5] for k in kit.env_values() if k.endswith("_USER")}
+    if key not in known:
+        raise HTTPException(400, "Unknown account. Add the person first.")
+    return key
+
+
+@router.put("/env/accounts/{name}")
+def put_account(name: str, body: AccountValuesIn):
+    """Save a person's user and password together. A blank password keeps the one already saved."""
+    key = _known_account(name)
+    user = body.user.strip()
+    if not user:
+        raise HTTPException(400, "Enter the user.")
+    password = body.password
+    if not password:
+        password = kit.env_values().get(f"{key}_PASSWORD", "")
+        if not password:
+            raise HTTPException(400, "Enter the password.")
+    _write_env(f"{key}_USER", user)
+    _write_env(f"{key}_PASSWORD", password)
+    return {"ok": True, "label": kit.account_label(key)}
+
+
+@router.delete("/env/accounts/{name}")
+def clear_account(name: str):
+    """Forget the saved user and password. The account name stays, so it can be filled in again."""
+    key = _known_account(name)
+    _write_env(f"{key}_USER", "")
+    _write_env(f"{key}_PASSWORD", "")
     return {"ok": True}
 
 
@@ -571,10 +640,11 @@ def add_account(body: AccountIn):
         raise HTTPException(400, "Give the account a name, e.g. Manager test account")
     p = kit.KIT_DIR / ".env.example"
     text = p.read_text(encoding="utf-8") if p.exists() else ""
-    if f"{key}_USER=" not in text:
+    created = f"{key}_USER=" not in text
+    if created:
         text = text.rstrip() + f"\n{key}_USER=\n{key}_PASSWORD=\n"
-        p.write_text(text, encoding="utf-8")
-    return {"key": key}
+        p.write_text(text + ("\n" if not text.endswith("\n") else ""), encoding="utf-8")
+    return {"key": key, "label": kit.account_label(key), "created": created}
 
 
 class OriginsIn(BaseModel):
@@ -617,13 +687,14 @@ async def start_login_setup(file: UploadFile | None = File(None)):
             raise HTTPException(400, f"Could not read the Excel:\n{r.output}")
 
     async def job():
-        try:
-            o = await run_login_setup("app")
-            bus.emit("app", "note", stage="setup-login", text=f"Login setup finished ({o.stopped}).")
-        except MissingApiKey as e:
-            bus.emit("app", "agent_error", stage="setup-login", text=str(e))
-        except Exception as e:  # noqa: BLE001
-            bus.emit("app", "agent_error", stage="setup-login", text=f"Login setup failed: {e}")
+        with kit.script_owner("app"):
+            try:
+                o = await run_login_setup("app")
+                bus.emit("app", "note", stage="setup-login", text=f"Login setup finished ({o.stopped}).")
+            except MissingApiKey as e:
+                bus.emit("app", "agent_error", stage="setup-login", text=str(e))
+            except Exception as e:  # noqa: BLE001
+                bus.emit("app", "agent_error", stage="setup-login", text=f"Login setup failed: {e}")
 
     login_task["job"] = asyncio.create_task(job())
     return {"started": True}
@@ -631,19 +702,24 @@ async def start_login_setup(file: UploadFile | None = File(None)):
 
 @router.post("/setup/login/stop")
 async def stop_login_setup():
-    """Stops the login agent, and closes its open question."""
+    """Stops the login agent, the command it is running, and closes its open question."""
     interactions.cancel_channel("app")
+    killed = kit.kill_owned("app")
     t = login_task.get("job")
-    if t and not t.done():
+    was_running = bool(t and not t.done())
+    if was_running:
         t.cancel()
         await asyncio.wait({t}, timeout=10)
+    still = bool(t and not t.done())
+    if (was_running or killed) and not still:
         bus.emit("app", "note", stage="setup-login", text="Login setup stopped.")
-    return {"running": False}
+    return {"running": still}
 
 
 @router.post("/setup/check-login")
 async def check_login():
-    r = await kit.run_script("check_login", "--all", timeout=900)
+    with kit.script_owner("app"):
+        r = await kit.run_script("check_login", "--all", timeout=900)
     return {"code": r.code, "output": r.output}
 
 

@@ -1,6 +1,7 @@
-import { Link, NavLink, Route, Routes } from 'react-router';
+import { Link, NavLink, Route, Routes, useMatch } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Interaction } from './api';
+import { LiveProvider, LiveRail } from './components/Live';
 import { RunsPage } from './pages/Runs';
 import { RunPage } from './pages/Run';
 import { SetupPage } from './pages/Setup';
@@ -20,7 +21,11 @@ export function App() {
   const health = useQuery({ queryKey: ['health'], queryFn: () => api.get<any>('/api/health'), refetchInterval: 5000 });
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => api.get<any>('/api/settings') });
   const open = useQuery({ queryKey: ['interactions'], queryFn: () => api.get<Interaction[]>('/api/interactions'), refetchInterval: 3000 });
+  const run = useMatch('/runs/:runId');
+  const runId = run?.params.runId ?? '';
   return (
+    <LiveProvider channel={runId ? `/api/runs/${runId}/events` : '/api/events/app'}
+      refresh={runId ? [['run', runId], ['interactions']] : [['interactions']]} scope={runId ? 'run' : 'app'}>
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow">Skip to content</a>
       <aside className="shrink-0 border-b border-line bg-surface md:h-full md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
@@ -51,17 +56,21 @@ export function App() {
               : null}
         </div>
       </aside>
-      <main id="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 outline-none md:px-8">
-        <Routes>
-          <Route path="/" element={<RunsPage />} />
-          <Route path="/runs/:runId" element={<RunPage />} />
-          <Route path="/setup" element={<SetupPage />} />
-          <Route path="/switches" element={<SwitchesPage />} />
-          <Route path="/knowledge" element={<KnowledgePage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
-      </main>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
+        <main id="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 outline-none md:px-8">
+          <Routes>
+            <Route path="/" element={<RunsPage />} />
+            <Route path="/runs/:runId" element={<RunPage />} />
+            <Route path="/setup" element={<SetupPage />} />
+            <Route path="/switches" element={<SwitchesPage />} />
+            <Route path="/knowledge" element={<KnowledgePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </main>
+        <LiveRail />
+      </div>
     </div>
+    </LiveProvider>
   );
 }
 

@@ -202,7 +202,8 @@ def login_prompt() -> str:
     for a in accounts:
         filled = "user name and password filled in" if a["user_set"] and a["password_set"] else \
             "MISSING " + " and ".join(p for p, ok in (("user name", a["user_set"]), ("password", a["password_set"])) if not ok)
-        lines.append(f"- {a['name']}: {filled}" + (f"; used by {', '.join(a['used_by'])}" if a["used_by"] else ""))
+        used = f"; used by {', '.join(a['used_by'])}" if a["used_by"] else ""
+        lines.append(f"- {a.get('label') or a['name']}: {filled}{used}")
     case_text = "\n\n".join(
         f"{c.get('test_id')} {c.get('title')} | start: {c.get('start_page')} | login as: {c.get('login_as') or '-'}\n"
         + "\n".join(f"  {s['n']}. {s['text']}" for s in c.get("steps", []))

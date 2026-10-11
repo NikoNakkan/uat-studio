@@ -30,8 +30,10 @@ def test_accounts_say_filled_or_missing_and_who_uses_them(client):
     client.put("/api/env", json={"key": "AUDITOR_TEST_ACCOUNT_USER", "value": "auditor@example.test"})
     acc = {a["name"]: a for a in kit.accounts_overview([{"test_id": "TC-09", "login_as": "Auditor test account"}])}
     assert acc["AUDITOR_TEST_ACCOUNT"]["user_set"] and not acc["AUDITOR_TEST_ACCOUNT"]["password_set"]
+    assert acc["AUDITOR_TEST_ACCOUNT"]["label"] == "Auditor test account"
+    assert acc["AUDITOR_TEST_ACCOUNT"]["user"] == "auditor@example.test"
     assert acc["AUDITOR_TEST_ACCOUNT"]["used_by"] == ["TC-09"]
-    assert "auditor@example.test" not in str(acc)
+    assert "auditor@example.test" not in pw_agents.login_prompt()
 
 
 def test_a_non_excel_file_is_refused(client):

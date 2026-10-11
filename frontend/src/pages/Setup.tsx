@@ -2,10 +2,10 @@ import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Event, type Interaction } from '../api';
-import { Activity } from '../components/Activity';
 import { ApiKeyBox } from '../components/ApiKey';
+import { useLive } from '../components/Live';
 import { Stepper, type StepDef, type StepState } from '../components/Stepper';
-import { Button, Field, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, errorText, fail, inputCls, ok, useEvents, useTitle, type Msg } from '../ui';
+import { Button, Field, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, errorText, fail, inputCls, ok, useTitle, type Msg } from '../ui';
 
 function fixFor(fix: string): string | null {
   if (fix.includes('init-agents')) return 'init-agents';
@@ -36,7 +36,7 @@ export function SetupPage() {
   const env = useQuery({ queryKey: ['env'], queryFn: () => api.get<any>('/api/env') });
   const loginTs = useQuery({ queryKey: ['kittext', 'tests/login.ts'], queryFn: () => api.get<{ text: string }>('/api/kit/text?path=tests%2Flogin.ts'), refetchInterval: 5000 });
   const open = useQuery({ queryKey: ['interactions'], queryFn: () => api.get<Interaction[]>('/api/interactions'), refetchInterval: 3000 });
-  const { events, live } = useEvents('/api/events/app', [['interactions']]);
+  const { events } = useLive();
 
   const rows: any[] = check.data?.rows ?? [];
   const machineOk = !!check.data && rows.every(r => r.status === 'OK' || r.status === 'INFO');
@@ -65,7 +65,7 @@ export function SetupPage() {
     },
     {
       id: 'accounts', title: 'Test accounts', state: state(accountsOk, env.isPending),
-      summary: accounts.length ? accounts.map(a => `${a.name}${a.user_set && a.password_set ? '' : ' (incomplete)'}`).join(' · ') : 'The accounts the Excel names in "Login as".',
+      summary: accounts.length ? accounts.map(accountSummary).join(' · ') : 'The people the Excel names in "Login as".',
       body: env.data ? <Accounts env={env.data} onSaved={() => qc.invalidateQueries({ queryKey: ['env'] })} /> : <Loading />,
     },
     {
@@ -73,7 +73,7 @@ export function SetupPage() {
       state: loginTs.isPending ? 'todo' : loginWaiting ? 'waiting' : running ? 'current' : loginWritten ? 'done' : 'current',
       summary: loginWaiting ? 'The login agent asked you something. Answer below.' : running ? 'The login agent is working…'
         : loginWritten ? 'tests/login.ts is written.' : 'The login agent writes tests/login.ts once, by looking at your login page.',
-      body: <Login events={events} live={live} running={running} written={loginWritten} />,
+      body: <Login running={running} written={loginWritten} />,
     },
   ];
   const allDone = steps.every(s => s.state === 'done');
@@ -132,7 +132,7 @@ function Machine({ check, rows }: { check: any; rows: any[] }) {
   );
 }
 
-function Login({ events, live, running, written }: { events: Event[]; live: any; running: boolean; written: boolean }) {
+function Login({ running, written }: { running: boolean; written: boolean }) {
   const qc = useQueryClient();
   const [job, setJob] = useState<string | null>(null);
   const [output, setOutput] = useState('');
@@ -150,7 +150,8 @@ function Login({ events, live, running, written }: { events: Event[]; live: any;
     <div className="grid gap-3">
       <p className="text-sm text-muted">Login is code, not AI. The login agent looks at your login page with Playwright and reads your test cases
         (which accounts log in, and what a logged-in user sees), asks only what neither tells it, writes tests/login.ts and proves every account
-        logs in. From then on every test logs in through that code. The agent never sees a password.</p>
+        logs in. From then on every test logs in through that code. The agent never sees a password.
+        What it says, and every command it runs, stays in the live panel.</p>
       <Field label="Your test cases" hint="The Excel you will test with. Without it, the agent uses the newest Excel you uploaded for a run.">
         <input type="file" accept=".xlsx" disabled={running || !!job} onChange={e => setFile(e.target.files?.[0] ?? null)}
           className={`${inputCls} max-w-md file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-2 file:py-1 file:text-sm file:font-medium file:text-ink`} />
@@ -165,9 +166,8 @@ function Login({ events, live, running, written }: { events: Event[]; live: any;
         <Button busy={job === 'check'} disabled={!!job || running} onClick={() => go('check', () => api.post('/api/setup/check-login'))}>
           {job === 'check' ? 'Checking every account…' : 'Check every account logs in'}</Button>
       </div>
-      {output && <Pre className="max-h-64 overflow-y-auto">{output}</Pre>}
+      {output && <Pre className="max-h-40 overflow-y-auto">{output}</Pre>}
       {error && <Notice>{error}</Notice>}
-      <Activity events={events} live={live} />
     </div>
   );
 }
@@ -205,48 +205,120 @@ function AppUnderTest({ env, onSaved }: { env: any; onSaved: () => void }) {
   );
 }
 
+function accountSummary(a: any) {
+  const label = a.label || a.name;
+  if (a.user_set && a.password_set) return `${label} · ${a.user}`;
+  return `${label} (not saved)`;
+}
+
+function usedLine(ids: string[]) {
+  if (!ids?.length) return '';
+  if (ids.length <= 3) return `Named in ${ids.join(', ')}`;
+  return `Named in ${ids.length} test cases`;
+}
+
 function Accounts({ env, onSaved }: { env: any; onSaved: () => void }) {
   const [label, setLabel] = useState('');
-  const [values, setValues] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<Msg>(null);
-  const [saving, setSaving] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const lock = useRef(false);
-  const set = async (key: string) => {
-    if (lock.current) return;
-    lock.current = true;
-    setSaving(key); setMsg(null);
-    try { await api.put('/api/env', { key, value: values[key] ?? '' }); setValues({ ...values, [key]: '' }); setMsg(ok(`${key} saved.`)); onSaved(); }
-    catch (e) { setMsg(fail(e)); }
-    finally { lock.current = false; setSaving(null); }
-  };
   return (
     <div className="grid gap-3">
-      <p className="text-sm text-muted">The Excel's "Login as" column names an account in plain words. Values go to the private .env file and are never shown again, never sent to the AI, and never committed.</p>
-      <Table head={['Account', 'User', 'Password']} rows={env.accounts.map((a: any) => [
-        <span className="font-mono text-xs">{a.name}</span>,
-        ...(['USER', 'PASSWORD'] as const).map(part => {
-          const key = `${a.name}_${part}`;
-          const isSet = part === 'USER' ? a.user_set : a.password_set;
-          return <div className="flex gap-1.5">
-            <input aria-label={key} type={part === 'PASSWORD' ? 'password' : 'text'} autoComplete="off" className={inputCls}
-              placeholder={isSet ? 'set (type to replace)' : 'not set'} value={values[key] ?? ''} onChange={e => setValues({ ...values, [key]: e.target.value })} />
-            <Button busy={saving === key} disabled={!values[key] || !!saving || adding} onClick={() => set(key)}>{saving === key ? 'Saving…' : 'Save'}</Button>
-          </div>;
-        }),
-      ])} />
-      <div className="flex flex-wrap gap-2">
-        <input className={`${inputCls} max-w-xs`} placeholder="New account, e.g. Manager test account" value={label} disabled={adding} onChange={e => setLabel(e.target.value)} />
-        <Button busy={adding} disabled={!label.trim() || !!saving} onClick={async () => {
-          if (lock.current) return;
-          lock.current = true;
-          setAdding(true); setMsg(null);
-          try { await api.post('/api/env/accounts', { label }); setLabel(''); setMsg(ok('Account added.')); onSaved(); }
-          catch (e) { setMsg(fail(e)); }
-          finally { lock.current = false; setAdding(false); }
-        }}>{adding ? 'Adding…' : 'Add account'}</Button>
-      </div>
+      <p className="text-sm text-muted">Each row is a person the tests log in as. The Excel names them in plain words, such as Employee test account. Saving keeps the user on screen. The password stays on this machine and is not shown again.</p>
+      {env.accounts.length === 0 && <p className="text-sm text-muted">No people yet. Add one, then enter how they sign in.</p>}
+      {env.accounts.map((a: any) => <AccountCard key={a.name} account={a} onSaved={onSaved} />)}
+      <form className="flex flex-wrap gap-2" onSubmit={async e => {
+        e.preventDefault();
+        if (lock.current || !label.trim()) return;
+        lock.current = true;
+        setAdding(true); setMsg(null);
+        try {
+          const r = await api.post<{ label: string; created: boolean }>('/api/env/accounts', { label: label.trim() });
+          setLabel('');
+          setMsg(r.created ? ok(`${r.label} added. Enter their user and password.`) : ok(`${r.label} is already on the list.`));
+          onSaved();
+        } catch (err) { setMsg(fail(err)); }
+        finally { lock.current = false; setAdding(false); }
+      }}>
+        <input className={`${inputCls} max-w-xs`} placeholder="New person, e.g. Employee test account" aria-label="New person" value={label} disabled={adding} onChange={e => setLabel(e.target.value)} />
+        <Button type="submit" busy={adding} disabled={!label.trim()}>{adding ? 'Adding…' : 'Add person'}</Button>
+      </form>
       <MsgNotice msg={msg} className="" />
     </div>
+  );
+}
+
+function AccountCard({ account, onSaved }: { account: any; onSaved: () => void }) {
+  const ready = !!(account.user_set && account.password_set);
+  const label = account.label || account.name;
+  const [editing, setEditing] = useState(false);
+  const [user, setUser] = useState('');
+  const [password, setPassword] = useState('');
+  const [held, setHeld] = useState<string | null>(null);
+  const [cleared, setCleared] = useState(false);
+  const [msg, setMsg] = useState<Msg>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const named = usedLine(account.used_by ?? []);
+  const showCard = !editing && !cleared && (ready || held !== null);
+  const shownUser = ready ? account.user : held;
+  const save = async () => {
+    setBusy('save'); setMsg(null);
+    try {
+      await api.put(`/api/env/accounts/${account.name}`, { user: user.trim(), password });
+      setHeld(user.trim()); setCleared(false); setPassword(''); setEditing(false);
+      setMsg(ok(`${label} saved.`));
+      onSaved();
+    } catch (e) { setMsg(fail(e)); }
+    finally { setBusy(null); }
+  };
+  if (showCard) {
+    return (
+      <div className="grid gap-2">
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-good/50 bg-good/5 px-3 py-2.5">
+          <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-good text-xs text-white">✓</span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">{label}</div>
+            <div className="truncate text-sm text-muted">{shownUser}</div>
+            <div className="text-xs text-muted">Password saved{named ? ` · ${named}` : ''}</div>
+          </div>
+          <Button disabled={!!busy} onClick={() => { setEditing(true); setUser(account.user || ''); setPassword(''); setMsg(null); }}>Change</Button>
+          <Button kind="danger" busy={busy === 'clear'} disabled={!!busy} onClick={async () => {
+            setBusy('clear'); setMsg(null);
+            try {
+              await api.del(`/api/env/accounts/${account.name}`);
+              setUser(''); setPassword(''); setHeld(null); setCleared(true);
+              setMsg(ok(`${label} removed. The name stays, so you can save them again.`));
+              onSaved();
+            } catch (e) { setMsg(fail(e)); }
+            finally { setBusy(null); }
+          }}>{busy === 'clear' ? 'Removing…' : 'Remove'}</Button>
+        </div>
+        <MsgNotice msg={msg} className="" />
+      </div>
+    );
+  }
+  return (
+    <form className="grid gap-3 rounded-md border border-line px-3 py-3" onSubmit={e => { e.preventDefault(); if (user.trim() && !busy) save(); }}>
+      <div>
+        <div className="text-sm font-medium">{label}</div>
+        <p className="text-xs text-muted">{editing
+          ? 'A blank password keeps the one already saved.'
+          : 'Not saved yet. Tests cannot log in as this person until you save a user and a password.'}</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="User">
+          <input className={inputCls} autoComplete="off" value={user} disabled={!!busy} placeholder="name@company.test" onChange={e => setUser(e.target.value)} />
+        </Field>
+        <Field label="Password">
+          <input type="password" className={inputCls} autoComplete="new-password" value={password} disabled={!!busy}
+            placeholder={account.password_set ? 'Saved — type to replace' : 'Password'} onChange={e => setPassword(e.target.value)} />
+        </Field>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" kind="primary" busy={busy === 'save'} disabled={!user.trim() || !!busy}>{busy === 'save' ? 'Saving…' : 'Save'}</Button>
+        {editing && <Button disabled={!!busy} onClick={() => { setEditing(false); setUser(''); setPassword(''); setMsg(null); }}>Cancel</Button>}
+      </div>
+      <MsgNotice msg={msg} className="" />
+    </form>
   );
 }

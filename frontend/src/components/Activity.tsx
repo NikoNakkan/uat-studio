@@ -9,7 +9,7 @@ import { InteractionCard } from './NeedsYou';
  * here, your answers show as your own bubbles, and tool calls and scripts fold into one plain line each
  * ("Read tests/login.ts", "Ran check_login.py · exit 0") that opens to the raw input and output.
  */
-export function Activity({ events, stage, live = 'live' }: { events: Event[]; stage?: string; live?: LiveStatus }) {
+export function Activity({ events, stage, live = 'live', docked = false, empty }: { events: Event[]; stage?: string; live?: LiveStatus; docked?: boolean; empty?: string }) {
   const [follow, setFollow] = useState(true);
   const [showSteps, setShowSteps] = useState(true);
   const box = useRef<HTMLDivElement>(null);
@@ -27,8 +27,8 @@ export function Activity({ events, stage, live = 'live' }: { events: Event[]; st
   const liveLabel = live === 'live' ? 'Live' : live === 'reconnecting' ? 'Reconnecting…' : 'Connecting…';
   const waiting = live === 'reconnecting' ? 'Reconnecting to live activity…' : 'Connecting to live activity…';
   return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap items-center gap-4 text-xs text-muted">
+    <div className={docked ? 'flex h-full min-h-0 flex-col gap-2' : 'grid gap-2'}>
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> Follow</label>
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={showSteps} onChange={e => setShowSteps(e.target.checked)} /> Show steps (tools and scripts)</label>
         <span className="flex items-center gap-1.5" role="status">
@@ -42,13 +42,15 @@ export function Activity({ events, stage, live = 'live' }: { events: Event[]; st
         const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
         if (atBottom !== follow) setFollow(atBottom);
       }}
-        className="grid max-h-[65vh] content-start gap-1.5 overflow-y-auto rounded-md border border-line bg-surface-2/40 p-3 text-sm">
+        className={`live-scroll grid min-w-0 content-start gap-1.5 overflow-x-hidden overflow-y-auto p-3 text-sm ${docked ? 'min-h-0 flex-1' : 'max-h-[65vh] rounded-md border border-line bg-surface-2/40'}`}>
+        <div className="grid w-full min-w-0 max-w-full gap-1.5">
         {items.length === 0 && (
           <p className="p-2 text-muted" role="status">
-            {live === 'live' ? 'Nothing yet. Start the run to see its activity here.' : waiting}
+            {live === 'live' ? (empty ?? 'Nothing yet. Start the run to see its activity here.') : waiting}
           </p>
         )}
         {items.map(i => <ItemView key={i.key} item={i} openIds={openIds} />)}
+        </div>
       </div>
     </div>
   );
@@ -69,6 +71,24 @@ type Item =
   | { kind: 'event'; key: string; e: Event }
   | { kind: 'tool'; key: string; call: Event; result?: Event }
   | { kind: 'script'; key: string; start: Event; lines: string[]; end?: Event };
+
+/** Stop ends the work even when a script never gets its own closing line. */
+function stopsTheWork(e: Event): boolean {
+  return (e.type === 'run' && e.status === 'stopped')
+    || (e.type === 'note' && /^Login setup stopped\b/.test(e.text ?? ''));
+}
+
+function closeOpenWork(script: Extract<Item, { kind: 'script' }> | null,
+  openTools: Map<string, Extract<Item, { kind: 'tool' }>[]>, e: Event) {
+  const why = e.reason || e.text || 'Stopped';
+  if (script && !script.end) script.end = { ...e, type: 'script_end', code: 130, text: why };
+  for (const queue of openTools.values()) {
+    for (const item of queue) {
+      if (!item.result) item.result = { ...e, type: 'tool_result', is_error: true, text: why };
+    }
+  }
+  openTools.clear();
+}
 
 function toItems(events: Event[]): Item[] {
   const items: Item[] = [];
@@ -95,6 +115,10 @@ function toItems(events: Event[]): Item[] {
       if (script && !script.end) script.end = e;
       script = null;
     } else {
+      if (stopsTheWork(e)) {
+        closeOpenWork(script, openTools, e);
+        script = null;
+      }
       items.push({ kind: 'event', key: `e${e.seq}`, e });
     }
   }
@@ -173,11 +197,11 @@ function AgentBubble({ e, tone, children }: { e: Event; tone?: 'bad' | 'warn'; c
   const border = tone === 'bad' ? 'border-bad/50' : tone === 'warn' ? 'border-warn/60' : 'border-line';
   const name = e.agent ?? 'The flow';
   return (
-    <div className="my-1 flex max-w-[92%] gap-2">
+    <div className="my-1 flex w-full min-w-0 max-w-full gap-2">
       <Avatar name={name} />
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 text-xs text-muted"><b className="text-ink">{name}</b> · {time(e.ts)}</div>
-        <div className={`rounded-lg rounded-tl-sm border ${border} bg-surface p-3 ${tone === 'bad' ? 'text-bad' : ''}`}>{children}</div>
+        <div className={`break-words rounded-lg rounded-tl-sm border ${border} bg-surface p-3 ${tone === 'bad' ? 'text-bad' : ''}`}>{children}</div>
       </div>
     </div>
   );
@@ -185,7 +209,7 @@ function AgentBubble({ e, tone, children }: { e: Event; tone?: 'bad' | 'warn'; c
 
 function YouBubble({ e }: { e: Event & { response?: unknown; kind?: string } }) {
   return (
-    <div className="my-1 ml-auto max-w-[85%]">
+    <div className="my-1 ml-auto w-full min-w-0 max-w-[85%] break-words">
       <div className="mb-0.5 text-right text-xs text-muted"><b className="text-ink">You</b> · {time(e.ts)}</div>
       <div className="rounded-lg rounded-tr-sm bg-accent/12 p-3">{answerText(e.response)}</div>
     </div>
@@ -217,16 +241,16 @@ function AskedSummary({ item }: { item: Interaction }) {
 function ToolStep({ call, result }: { call: Event; result?: Event }) {
   const status = !result ? 'running' : result.is_error ? 'error' : 'ok';
   return (
-    <details className="group ml-9 text-xs">
-      <summary className="flex cursor-pointer list-none items-center gap-2 rounded px-1.5 py-0.5 text-muted hover:bg-surface">
+    <details className="group min-w-0 max-w-full text-xs">
+      <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 rounded px-1.5 py-0.5 text-muted hover:bg-surface">
         <StepIcon status={status} />
-        <span className="truncate"><span className="text-ink">{describe(call.tool ?? '', parse(call.input))}</span></span>
+        <span className="min-w-0 flex-1 truncate"><span className="text-ink">{describe(call.tool ?? '', parse(call.input))}</span></span>
         <span className="ml-auto shrink-0 tnum opacity-0 group-hover:opacity-100">{time(call.ts)}</span>
       </summary>
       <div className="mt-1 mb-2 ml-6 grid gap-1 font-mono">
         <div className="text-muted">{call.tool}</div>
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-surface p-2">{pretty(call.input)}</pre>
-        {result && <pre className={`max-h-64 overflow-auto whitespace-pre-wrap rounded bg-surface p-2 ${result.is_error ? 'text-bad' : 'text-muted'}`}>
+        <pre className="max-h-48 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-all rounded bg-surface p-2">{pretty(call.input)}</pre>
+        {result && <pre className={`max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-all rounded bg-surface p-2 ${result.is_error ? 'text-bad' : 'text-muted'}`}>
           {result.text}{result.images ? `\n[${result.images} image]` : ''}</pre>}
       </div>
     </details>
@@ -236,14 +260,14 @@ function ToolStep({ call, result }: { call: Event; result?: Event }) {
 function ScriptStep({ start, lines, end }: { start: Event; lines: string[]; end?: Event }) {
   const status = !end ? 'running' : end.code === 0 ? 'ok' : 'error';
   return (
-    <details className="group ml-9 text-xs">
-      <summary className="flex cursor-pointer list-none items-center gap-2 rounded px-1.5 py-0.5 text-muted hover:bg-surface">
+    <details className="group min-w-0 max-w-full text-xs">
+      <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 rounded px-1.5 py-0.5 text-muted hover:bg-surface">
         <StepIcon status={status} />
-        <span className="truncate"><span className="text-ink">Ran {scriptName(start.script)}</span>{end ? ` · exit ${end.code}` : ' · running'}
+        <span className="min-w-0 flex-1 truncate"><span className="text-ink">Ran {scriptName(start.script)}</span>{end ? ` · exit ${end.code}` : ' · running'}
           {lastLine(lines, end) && <span> · {lastLine(lines, end)}</span>}</span>
         <span className="ml-auto shrink-0 tnum opacity-0 group-hover:opacity-100">{time(start.ts)}</span>
       </summary>
-      <pre className="mt-1 mb-2 ml-6 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-surface p-2 font-mono text-muted">
+      <pre className="mt-1 mb-2 max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-all rounded bg-surface p-2 font-mono text-muted">
         $ {start.script}{'\n'}{lines.join('\n') || end?.text || ''}
       </pre>
     </details>
@@ -253,7 +277,7 @@ function ScriptStep({ start, lines, end }: { start: Event; lines: string[]; end?
 function lastLine(lines: string[], end?: Event) {
   const all = lines.length ? lines : (end?.text ?? '').split('\n');
   const l = [...all].reverse().find(x => x.trim());
-  return l && l.length > 90 ? l.slice(0, 90) + '…' : l;
+  return l && l.length > 42 ? l.slice(0, 42) + '…' : l;
 }
 
 function StepIcon({ status }: { status: 'running' | 'ok' | 'error' }) {
@@ -263,8 +287,10 @@ function StepIcon({ status }: { status: 'running' | 'ok' | 'error' }) {
 
 function scriptName(s?: string) {
   if (!s) return 'a script';
-  const m = s.match(/([\w-]+\.(py|ts|js))/);
-  return m ? m[1] : s.split(' ')[0];
+  const file = s.match(/([\w.-]+\.(py|ts|js))/);
+  if (file) return file[1];
+  if (s.startsWith('npx ')) return s.length > 56 ? `${s.slice(0, 56)}…` : s;
+  return s.split(' ')[0];
 }
 
 /** Tool inputs arrive as JSON cut at 300 characters; read what can be read. */
