@@ -49,8 +49,9 @@ def _state(running: bool, waiting: int, sealed: bool, stages: dict, total: int) 
 def _summary(rid: str) -> dict:
     p = kit.run_path(rid)
     prog = kit.read_json(p / "progress.json", {}) or {}
-    stages = prog.get("stages", {})
-    total = len(kit.workflow()["stages"])
+    ids = [s["id"] for s in kit.workflow()["stages"]]
+    stages = {s: v for s, v in prog.get("stages", {}).items() if s in ids}     # not stages since removed from the flow
+    total = len(ids)
     current = next((s for s, v in reversed(list(stages.items())) if v.get("status") not in ("done", "skipped")), None)
     tests = prog.get("tests", {})
     results = [t.get("result") for t in tests.values()]

@@ -51,3 +51,17 @@ def test_run_summary_and_detail_carry_the_cost(client, kit_dir):
     assert client.get("/api/runs/2026-01-01-0000").json()["cost"]["by_agent"][0]["key"] == "uat-clarifier"
     assert client.get("/api/runs/2026-01-01-0000/cost").json()["by_stage"][0]["key"] == "clarify"
     assert client.get("/api/runs/no-such-run/cost").status_code == 404
+
+
+def test_a_stage_removed_from_the_flow_is_not_counted(client, kit_dir):
+    import json
+
+    from app import kit
+
+    ids = [s["id"] for s in kit.workflow()["stages"]]
+    run = kit_dir / "runs" / "2026-01-06-0000"
+    run.mkdir(parents=True)
+    stages = {s: {"status": "done"} for s in ids} | {"console_review": {"status": "skipped"}}
+    (run / "progress.json").write_text(json.dumps({"stages": stages}), encoding="utf-8")
+    listed = next(r for r in client.get("/api/runs").json() if r["id"] == "2026-01-06-0000")
+    assert listed["stages_done"] == listed["stages_total"] == len(ids)              # was "12 of 11 stages"

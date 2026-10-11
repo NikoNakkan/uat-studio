@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Route, Routes, useMatch } from 'react-router';
+import { NavLink, Route, Routes, useMatch } from 'react-router';
 import { useHealth, useInteractions, useSettings } from './lib/queries';
 import { applyTheme, readTheme, THEME_KEY, writeTheme, type Theme } from './lib/theme';
 
 import { LiveProvider, LiveRail } from './components/Live';
+import { RailProvider } from './components/live/RailState';
+import { WaitingLink } from './components/live/WaitingLink';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { HomePage } from './pages/Home';
 import { RunsPage } from './pages/Runs';
@@ -51,6 +53,7 @@ export function App() {
   const run = useMatch('/runs/:runId');
   const runId = run?.params.runId ?? '';
   return (
+    <RailProvider>
     <LiveProvider channel={runId ? `/api/runs/${runId}/events` : '/api/events/app'}
       refresh={runId ? [['run', runId], ['interactions']] : [['interactions']]} scope={runId ? 'run' : 'app'}>
     <div className="flex h-full min-h-0 flex-col md:flex-row">
@@ -87,8 +90,7 @@ export function App() {
           {open.isPending
             ? <Status pending label="Checking for questions…" />
             : open.data?.length
-              ? <Link to={open.data[0].channel === 'app' ? '/setup' : `/runs/${open.data[0].channel}`}
-                  className="rounded bg-accent px-2 py-1 font-semibold text-accent-ink hover:brightness-95">{open.data.length} waiting for you →</Link>
+              ? <WaitingLink open={open.data} />
               : null}
         </div>
       </aside>
@@ -108,6 +110,7 @@ export function App() {
       </div>
     </div>
     </LiveProvider>
+    </RailProvider>
   );
 }
 
