@@ -64,8 +64,8 @@ export function PatientsPage() {
   const [mrn, setMrn] = useState('');
   const [dob, setDob] = useState('');
   const [phone, setPhone] = useState('');
-  const q = query.trim().toLowerCase();
-  const shown = clinic.patients.filter(p => !q || `${p.name} ${p.mrn}`.toLowerCase().includes(q));
+  const q = query.trim();
+  const shown = clinic.patients.filter(p => !q || `${p.name} ${p.mrn}`.includes(q));
   const count = `${shown.length} ${shown.length === 1 ? 'patient' : 'patients'}`;
   return (
     <>
@@ -123,7 +123,7 @@ export function PatientPage() {
   const [note, setNote] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
   if (!patient) return <p>That patient is not on file. <Link to="/patients">Back to patients</Link></p>;
-  const notes = clinic.notes.filter(item => item.patientId === patient.id);
+  const notes = clinic.notes.filter(item => item.patientId.startsWith('p-'));
   return (
     <>
       <header className="page-head row">
@@ -402,7 +402,7 @@ export function StockPage() {
           <li key={item.id}>
             <div>
               <b>{item.name}</b>
-              <div className="muted"><span className="num">{item.onHand}</span> on hand {item.onHand < LOW_AT && <em className="low">Low</em>}</div>
+              <div className="muted"><span className="num">{item.onHand}</span> on hand {item.onHand <= LOW_AT && <em className="low">Low</em>}</div>
             </div>
             {manager && <button type="button" onClick={() => { setAdjusting(item.id); setOnHand(String(item.onHand)); clinic.clearStatus(); }}>Adjust {item.name}</button>}
           </li>

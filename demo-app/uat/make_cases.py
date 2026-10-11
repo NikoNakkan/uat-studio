@@ -388,8 +388,59 @@ def v3() -> list[dict]:
     return rows
 
 
+def v4() -> list[dict]:
+    """v3, TC-31 orders HbA1c instead, and four new cases: three find the bugs planted for v4, one passes."""
+    rows = [dict(r) for r in v3()]
+    for row in rows:
+        if row["test_id"] == "TC-31":
+            row["title"] = "Order an HbA1c test"
+            row["steps"] = row["steps"].replace("Lipid panel", "HbA1c")
+            row["expected_results"] = row["expected_results"].replace("Lipid panel", "HbA1c")
+    rows += [
+        {
+            "test_id": "TC-40", "group": "Patients", "title": "Search ignores capital letters",
+            "start_page": START + "/patients", "login_as": EMPLOYEE, "preconditions": "Ada Lovelace is on file.",
+            "steps": '1. Type "ada" in Search patients',
+            "expected_results": '1. The patient list shows "Ada Lovelace"\n1. The patient list shows "1 patient"',
+            "automation": "auto", "priority": "Medium",
+            "notes": "Staff type names in lower case. Finds the planted search bug.",
+        },
+        {
+            "test_id": "TC-41", "group": "Patients", "title": "A note stays on its own patient",
+            "start_page": START + "/patients", "login_as": EMPLOYEE,
+            "preconditions": "Neither Ada Lovelace nor Alan Turing has notes this session.",
+            "steps": '1. Click "Ada Lovelace"\n2. Click "Add note"\n3. Type "Rash on the left arm" in Note\n4. Click "Save note"\n'
+                     '5. Click "Patients"\n6. Click "Alan Turing"',
+            "expected_results": '4. The status message shows "Saved a note for Ada Lovelace"\n6. The heading shows "Alan Turing"\n'
+                                '6. The notes show "No notes yet."',
+            "automation": "auto", "priority": "High",
+            "notes": "A clinical note on the wrong patient is a safety issue. Finds the planted notes bug.",
+        },
+        {
+            "test_id": "TC-42", "group": "Stock", "title": "Saline at 5 is not low",
+            "start_page": START + "/stock", "login_as": MANAGER,
+            "preconditions": "Saline has 12 on hand. Stock is low only below 5.",
+            "steps": '1. Click "Adjust Saline"\n2. Type "5" in On hand\n3. Click "Save stock"',
+            "expected_results": '3. The status message shows "Saline is now 5 on hand"\n'
+                                '3. The stock list shows "Saline 5 on hand" with no "Low" label next to Saline',
+            "automation": "auto", "priority": "Medium",
+            "notes": "The boundary of the Low label. Finds the planted stock bug.",
+        },
+        {
+            "test_id": "TC-43", "group": "Labs", "title": "Employee orders a urine culture",
+            "start_page": START + "/labs", "login_as": EMPLOYEE, "preconditions": "",
+            "steps": '1. Click "Order lab"\n2. Choose "Ada Lovelace" in Patient\n3. Type "Urine culture" in Test\n4. Click "Save lab"',
+            "expected_results": '4. The status message shows "Ordered Urine culture for Ada Lovelace"\n4. The lab list shows "Urine culture"',
+            "automation": "auto", "priority": "Low",
+            "notes": "A new case with no bug behind it: it should pass.",
+        },
+    ]
+    return rows
+
+
 if __name__ == "__main__":
     write(ROOT / "lumen-clinic-tests.xlsx", V1)
     write(ROOT / "lumen-clinic-tests-v2.xlsx", v2())
     write(ROOT / "lumen-clinic-tests-v3.xlsx", v3())
-    print(f"Wrote {len(V1)}, {len(v2())} and {len(v3())} cases in {ROOT}")
+    write(ROOT / "lumen-clinic-tests-v4.xlsx", v4())
+    print(f"Wrote {len(V1)}, {len(v2())}, {len(v3())} and {len(v4())} cases in {ROOT}")
