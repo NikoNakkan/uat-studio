@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UAT flow · switches</title>
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 24px; color: #222; max-width: 1100px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .muted { color: #666; }
+  .area { margin-top: 22px; }
+  .area h2 { font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .item { display: grid; grid-template-columns: 56px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px dotted #eee; }
+  .item.off { background: #fff6f6; }
+  .item.unavailable { opacity: .55; }
+  .name { font-weight: 600; }
+  .id { color: #888; font-weight: 400; font-size: 12px; }
+  .what { color: #444; }
+  .note { font-size: 12px; color: #a33; }
+  .tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 8px; background: #eee; margin-left: 6px; }
+  .tag.core { background: #e3f0ff; }
+  .tag.planned, .tag.set-aside { background: #f3f3f3; color: #777; }
+  textarea { width: 100%; height: 160px; font: 12px/1.4 ui-monospace, monospace; }
+  button { font: inherit; padding: 4px 10px; }
+  .toolbar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; }
+</style>
+</head>
+<body>
+<h1>UAT flow · which parts are switched on</h1>
+<div class="muted">Generated <span id="generated"></span> from config/features.yaml and config/profile.yaml.
+Untick a part to switch it off; everything that cannot work without it switches off too. Copy the profile at the bottom into config/profile.yaml.</div>
+<div class="toolbar">
+  <span id="counts"></span>
+  <button id="reset">Reset to current profile</button>
+</div>
+<div id="areas"></div>
+<h2>config/profile.yaml</h2>
+<textarea id="profile" readonly></textarea>
+
+<script>
+const DATA = /*__FEATURE_DATA__*/null;
+if (!DATA) document.body.innerHTML = '<p>No data: run python scripts/features.py page</p>';
+
+const items = Object.fromEntries(DATA.items.map(i => [i.id, { requires: [], soft: [], status: 'built', core: false, ...i }]));
+let off = new Set(DATA.off);
+
+function built(i) { return items[i].status === 'built'; }
+function effectiveOn() {
+  const memo = {};
+  const on = (i, seen = new Set()) => {
+    if (i in memo) return memo[i];
+    const it = items[i];
+    seen.add(i);
+    memo[i] = built(i) && !off.has(i) && it.requires.every(r => seen.has(r) || on(r, seen));
+    return memo[i];
+  };
+  return new Set(Object.keys(items).filter(i => on(i)));
+}
+function dependents(i) {
+  const out = [], todo = [i];
+  while (todo.length) {
+    const cur = todo.shift();
+    for (const [d, it] of Object.entries(items)) if (it.requires.includes(cur) && !out.includes(d)) { out.push(d); todo.push(d); }
+  }
+  return out;
+}
+function needs(i) {
+  const out = [], todo = [...items[i].requires];
+  while (todo.length) { const r = todo.shift(); if (!out.includes(r)) { out.push(r); todo.push(...items[r].requires); } }
+  return out;
+}
+function toggle(i) {
+  const on = effectiveOn();
+  if (on.has(i)) {
+    if (items[i].core) return alert(items[i].name + ' is core: ' + (items[i].core_reason || 'the flow does not work without it.'));
+    const cascade = dependents(i).filter(d => on.has(d));
+    const blocked = cascade.filter(d => items[d].core);
+    if (blocked.length) return alert('Core parts need ' + items[i].name + ': ' + blocked.map(b => items[b].name).join(', '));
+    off.add(i); cascade.forEach(d => off.add(d));
+  } else {
+    if (!built(i)) return;
+    off.delete(i); needs(i).forEach(r => off.delete(r));
+  }
+  render();
+}
+function render() {
+  const on = effectiveOn();
+  const areas = {};
+  for (const it of Object.values(items)) (areas[it.area] ??= []).push(it);
+  const root = document.getElementById('areas');
+  root.innerHTML = '';
+  for (const [area, list] of Object.entries(areas)) {
+    const div = document.createElement('div'); div.className = 'area';
+    div.innerHTML = '<h2>' + area + '</h2>';
+    for (const it of list) {
+      const isOn = on.has(it.id), avail = built(it.id);
+      const row = document.createElement('label');
+      row.className = 'item' + (isOn ? '' : ' off') + (avail ? '' : ' unavailable');
+      const losses = (it.soft || []).filter(s => !on.has(s.id)).map(s => 'works less well: ' + s.loss);
+      const why = !isOn && avail && !off.has(it.id) ? 'off because it needs: ' + needs(it.id).filter(r => !on.has(r)).map(r => items[r].name).join(', ') : '';
+      row.innerHTML = '<div><input type="checkbox" ' + (isOn ? 'checked' : '') + (avail ? '' : ' disabled') + '></div>' +
+        '<div><div class="name">' + it.name + ' <span class="id">' + it.id + '</span>' +
+        (it.core ? '<span class="tag core">core</span>' : '') +
+        (it.status !== 'built' ? '<span class="tag ' + it.status + '">' + it.status + '</span>' : '') + '</div>' +
+        '<div class="what">' + it.what + '</div>' +
+        (why ? '<div class="note">' + why + '</div>' : '') +
+        losses.map(l => '<div class="note">' + l + '</div>').join('') + '</div>';
+      row.querySelector('input').addEventListener('change', e => { e.preventDefault(); toggle(it.id); });
+      div.appendChild(row);
+    }
+    root.appendChild(div);
+  }
+  const builts = Object.keys(items).filter(built);
+  document.getElementById('counts').textContent =
+    'On ' + builts.filter(i => on.has(i)).length + ' · off ' + builts.filter(i => !on.has(i)).length + ' · core ' + builts.filter(i => items[i].core).length;
+  const listed = Object.keys(items).filter(i => off.has(i));
+  document.getElementById('profile').value =
+    '# Parts of the UAT flow that are switched off. Everything built and not listed here is on.\n' +
+    '# Change it with: python scripts/features.py off <id> | on <id>, or paste this from the switch page.\n' +
+    '# Ids and dependencies: config/features.yaml\n\nswitched_off:' + (listed.length ? '\n' + listed.map(i => '  - ' + i).join('\n') : ' []') + '\n';
+}
+document.getElementById('generated').textContent = DATA.generated;
+document.getElementById('reset').addEventListener('click', () => { off = new Set(DATA.off); render(); });
+render();
+</script>
+</body>
+</html>

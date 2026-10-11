@@ -1,0 +1,13 @@
+{
+  "name": "uat-agents",
+  "private": true,
+  "description": "UAT runs from an Excel file with AI agents and Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report",
+    "selftest:canvas": "playwright test --config selftest/canvas-browser/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0"
+  }
+}

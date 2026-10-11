@@ -1,0 +1,36 @@
+# Read by scripts/guard_hook.py, which VS Code runs before every tool call of every agent
+# (.github/hooks/guard.json). Playwright MCP's own origin options are "not a security
+# boundary" (Playwright MCP docs), so the hook enforces these rules instead.
+
+allowed_origins:                     # the browser may only open these sites
+  - http://localhost:4173
+  # Power Apps canvas apps (see config/power-platform.yaml). "*" stands for one or more name parts:
+  # - https://apps.powerapps.com
+  # - https://login.microsoftonline.com
+  # - https://*.crm.dynamics.com          # model-driven apps and Dataverse
+
+blocked_tools:                       # refused outright
+  - browser_evaluate                 # runs code inside the page (planner, generator, healer have it)
+  - browser_run_code
+  - browser_run_code_unsafe          # the planner has it
+  - browser_file_upload
+  - planner_save_plan                # decision 4: the planner reports mismatches; it never rewrites our plan
+
+protected_files:                     # no agent may open these with any file tool or shell command
+  - .env                             # the passwords (rule 6 in AGENTS.md); tests read it, agents never do
+
+never_click:                         # refused outright (exact element names, any case)
+  - Clear all
+
+ask_before_click_matching:           # pause and ask the person first (whole word in the element name:
+  - delete                           # "Delete Taxi" asks, "Undeleted" does not)
+  - remove
+  - send
+  - pay
+  - submit payment
+
+dialogs_need_approval: true          # accepting a browser confirm dialog ("Delete Taxi?") asks the person
+
+# Relative addresses ("/reports") are allowed: they stay on the site the page is already on.
+# Test code is guarded separately: check_tests.py rejects goto() to other sites, route(), evaluate() ...
+# (config/test-check-rules.yaml), because the hook only sees tool calls, not the tests that run later.

@@ -1,0 +1,119 @@
+# The fixed order of a UAT run. The orchestrator follows it and cannot skip or reorder stages.
+# Patterns: plan -> validate -> execute, gates between stages, stops for a person,
+# a progress file so a stopped run can continue (Anthropic long-running harness).
+#
+# Before the first stage:  python scripts/progress.py new <excel> --strictness <level>
+# After every stage:       python scripts/progress.py stage runs/<run-id> <stage-id> done
+#                          and the tracking-usage skill records the model and tokens.
+# Script paths below are relative to the repository root.
+#
+# Switches (config/features.yaml, config/profile.yaml): a stage runs only when its `feature` is on
+#   python scripts/features.py is-on <feature>     -> ON or OFF; OFF = mark the stage skipped
+# The same goes for then_feature, repair_feature and agent_feature, and a listed skill is used only
+# when skill-<skill name> is on.
+
+run_folder: runs/<run-id>
+
+stages:
+  - id: preflight
+    feature: stage-preflight
+    agent: uat-setup
+    skills: [checking-setup]
+    does: Quick check that everything is installed, the start page is reachable, and (after intake) the
+          run's test accounts log in. The login check needs cases.json, so it is run again at the start of plan.
+    gate: "check_setup.py exits 0"
+    stop_for_person: only when something is missing (installing needs a yes; login needs /setup-login)
+
+  - id: intake
+    feature: stage-intake
+    agent: uat-orchestrator
+    skills: [reading-uat-excel, detecting-test-changes]
+    does: Read and validate the Excel, then sort its cases into unchanged, changed, new and missing.
+    gate: "validate.py exits 0"
+    on_fail: stop and show the problems exactly as printed (the author fixes the Excel)
+
+  - id: clarify
+    feature: stage-clarify
+    agent: uat-clarifier
+    skills: [detecting-test-changes, grilling-test-cases, maintaining-glossary, writing-questionnaires]
+    does: Confirm uncertain changes, then ask until every changed or new case is unambiguous.
+    gate: "no open questions in clarifications.md, or the person said to proceed"
+    stop_for_person: confirm uncertain changes; answer questions
+    skip_when: no changed or new cases
+
+  - id: plan
+    feature: stage-plan
+    before: python .github/skills/setting-up-login/scripts/check_login.py --run runs/<run-id>
+    before_feature: login-at-run-time   # exit 2 (no account named) is fine; exit 1 = stop: /setup-login first
+    script: python .github/skills/writing-playwright-plan/scripts/excel_to_plan.py runs/<run-id>
+    does: Prove the run's test accounts log in, then copy the cases into Playwright's plan layout, one plan
+          per Group, write one logged-in seed per account, and list the cases to generate.
+    gate: "check_login.py did not exit 1, and excel_to_plan.py exits 0"
+
+  - id: planner_check
+    feature: stage-planner-check
+    agent: playwright-test-planner
+    skills: [mapping-the-app]          # the planner cannot read files: the orchestrator puts the format in its message
+    per: group in generate-list.json
+    then: python .github/skills/mapping-the-app/scripts/merge_app_map.py runs/<run-id> <group>
+    gate: "merge_app_map.py exits 0 (no mismatches)"
+    on_mismatch: clarify               # mismatches become questions for the author, at most max_planner_rounds times
+    canvas_agent: uat-canvas-specialist  # groups whose cases have app_type canvas: Playwright's planner sees only an empty frame
+    canvas_feature: agent-canvas-specialist
+    canvas_skills: [mapping-canvas-apps, testing-canvas-apps]
+    skip_when: generate-list.json is empty
+
+  - id: generate
+    feature: stage-generate
+    agent: playwright-test-generator
+    per: test_case in generate-list.json, one after another, never in parallel
+    canvas_skills: [testing-canvas-apps]   # for entries whose app_type is canvas: the canvas rules go in the message
+    gate: "a test file exists for every case in generate-list.json"
+    skip_when: generate-list.json is empty
+
+  - id: test_check
+    feature: stage-test-check
+    script: python .github/skills/checking-generated-tests/scripts/check_tests.py runs/<run-id>
+    then: python .github/skills/checking-flakiness/scripts/repeat_new_tests.py runs/<run-id> --times 3
+    then_feature: skill-checking-flakiness
+    gate: "both exit 0"
+    on_reject: generate                # with the script's reason, at most max_generate_attempts per case
+
+  - id: run
+    feature: stage-run
+    script: python scripts/run_tests.py runs/<run-id>
+    does: The saved tests run with no AI. The fixture captures console and network errors;
+          the progress reporter saves each test's result as soon as it finishes.
+    gate: "every case with a test file has a result in progress.json"
+
+  - id: failures
+    feature: stage-failures
+    agent: uat-diagnostician
+    skills: [diagnosing-failures, reproducing-failures]
+    stop_for_person: approve or decline each repair
+    repair_agent: playwright-test-healer   # called by the orchestrator, one approved test at a time
+    repair_feature: repairs
+    before_repair: python .github/skills/checking-generated-tests/scripts/check_tests.py runs/<run-id> --snapshot <test-id>
+    after_repair: python .github/skills/checking-generated-tests/scripts/check_tests.py runs/<run-id> --files <test-file> --assertion-lock
+    then: python scripts/run_tests.py runs/<run-id> <test-file>
+    skip_when: no failed tests
+
+  - id: screens
+    feature: stage-screens
+    script: python .github/skills/comparing-screens/scripts/compare_screens.py runs/<run-id>
+    agent: uat-screen-reviewer         # only when compare_screens.py prints "AI review: needed"
+    agent_feature: agent-screen-reviewer
+    skills: [comparing-screens]
+    advisory: true                     # never changes a test result
+
+  - id: signoff
+    feature: stage-signoff
+    agent: uat-reporter
+    skills: [verifying-evidence, tracking-usage, writing-results-excel]
+    stop_for_person: PASS / CONCERNS / FAIL / WAIVED per sign-off unit (config/signoff.yaml)
+    gate: "results.xlsx written"
+
+limits:
+  max_generate_attempts: 2             # then the case is reported to the person instead of retried
+  max_planner_rounds: 2                # clarify -> plan -> planner_check loops per run; then the open mismatches
+                                       # are reported and those cases are not generated

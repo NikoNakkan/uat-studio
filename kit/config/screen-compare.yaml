@@ -1,0 +1,15 @@
+# Screen comparison against the last signed-off run (decisions 26, 27). Advisory only.
+
+baseline: last_signed_off_run        # the newest run whose signoff.json is complete
+
+# Rendering noise is removed without AI first:
+masks:                               # CSS selectors painted over in every step screenshot (dates, IDs, clocks)
+  []                                 # e.g. ["[data-testid=created-at]", ".order-number"]
+pixel_tolerance: 16                  # 0-255: colour difference a pixel may have and still count as equal
+max_changed_pixels: 20               # a screen is flagged when more pixels than this changed.
+                                     # Keep it small: a renamed button changed ~1,000 of 921,600 pixels (0.1 %)
+                                     # in the trial. Playwright's own screenshot check allows 0 by default.
+
+ai_review: auto                      # auto | off
+ai_review_threshold: 5               # N: the AI reviews only when more than N screens are flagged
+                                     # (set after the first real runs)

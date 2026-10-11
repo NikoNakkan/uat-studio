@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-REAL_KIT = Path(__file__).resolve().parents[3] / "agentic-testing-kit"
+REAL_KIT = Path(__file__).resolve().parents[2] / "kit"                 # the kit as it ships with Studio
 TMP = Path(tempfile.mkdtemp(prefix="uatstudio-"))
 KIT = TMP / "kit"
 # Never copy secrets (.env, a stray key file) into the throw-away kit.

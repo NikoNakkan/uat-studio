@@ -1,0 +1,49 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+ body{font:14px sans-serif;margin:0}
+ [data-control-name="Gallery1"]{position:relative;height:200px;overflow-y:auto;border:1px solid #888;width:400px}
+ .row{position:absolute;left:0;right:0;height:40px;border-bottom:1px solid #ddd}
+ .row .overlay{position:absolute;inset:0;background:transparent}  /* like the canvas gallery's click layer */
+ .row.selected{background:#cde}
+</style></head><body>
+<div id="app"></div>
+<script>
+// Fake Power Apps runtime: the first screen appears only after a delay (Dataverse load).
+const state = { typedOrder: '', rows: Array.from({length: 50}, (_, i) => 'ORD-' + String(i + 1).padStart(4, '0')), selected: '' };
+const ROW = 40;
+function render() {
+  const g = document.querySelector('[data-control-name="Gallery1"]');
+  const inner = g.querySelector('.inner');
+  inner.style.height = state.rows.length * ROW + 'px';
+  const first = Math.floor(g.scrollTop / ROW), last = Math.min(state.rows.length, first + Math.ceil(200 / ROW) + 1);
+  inner.innerHTML = '';
+  for (let i = first; i < last; i++) {          // virtualised: only rows in view exist in the page
+    const r = document.createElement('div');
+    r.className = 'row' + (state.rows[i] === state.selected ? ' selected' : '');
+    r.dataset.controlPart = 'gallery-item';
+    r.style.top = i * ROW + 'px';
+    r.innerHTML = `<div data-control-name="Title1" style="padding:10px">${state.rows[i]}</div><div class="overlay"></div>`;
+    r.addEventListener('click', () => { state.selected = state.rows[i]; document.querySelector('[data-control-name="SelectedLabel"]').textContent = 'Selected ' + state.rows[i]; render(); });
+    inner.appendChild(r);
+  }
+}
+setTimeout(() => {
+  document.getElementById('app').innerHTML = `
+    <div data-control-name="Gallery1"><div class="inner" style="position:relative"></div></div>
+    <div data-control-name="OrderNumberInput"><input aria-label="Order number"></div>
+    <button data-control-name="SaveButton">Save</button>
+    <div data-control-name="StatusLabel"></div>
+    <div data-control-name="SelectedLabel"></div>`;
+  const input = document.querySelector('[data-control-name="OrderNumberInput"] input');
+  // Power Fx OnChange: the runtime updates its own state from keyboard events, not from the input event.
+  input.addEventListener('keyup', () => { state.typedOrder = input.value; });
+  document.querySelector('[data-control-name="SaveButton"]').addEventListener('click', () => {
+    if (!state.typedOrder) { document.querySelector('[data-control-name="StatusLabel"]').textContent = 'Order number is required'; return; }
+    state.rows.unshift(state.typedOrder);
+    document.querySelector('[data-control-name="StatusLabel"]').textContent = 'Saved ' + state.typedOrder;
+    render();
+  });
+  document.querySelector('[data-control-name="Gallery1"]').addEventListener('scroll', render);
+  render();
+}, 2500);
+</script></body></html>

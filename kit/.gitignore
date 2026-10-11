@@ -1,0 +1,21 @@
+.env
+node_modules/
+runs/*
+!runs/.gitkeep
+test-results/
+playwright-report/
+__pycache__/
+.pytest_cache/
+
+selftest/canvas-browser/.run/
+
+# Secrets: never committed
+key.txt
+*.key
+.playwright-ms-auth/
+
+# Local tools
+.venv/
+
+# Playwright MCP output (the agents' browser snapshots and screenshots)
+.playwright-mcp/

@@ -1,0 +1,24 @@
+# What the clarifier asks about at each level. Chosen per run (/run-uat asks for it).
+# Pattern: Spec Kit clarify (question budget, impact order), Matt Pocock's grilling.
+
+default: standard
+max_questions_per_round: 5
+
+levels:
+  basic:
+    - a value the step needs is missing
+    - a step has no expected result where one is needed to judge the test
+    - the start page or a named page does not exist
+  standard:
+    include: basic
+    add:
+      - vague words (valid, correct, works, looks fine, as expected, properly)
+      - unclear button, field or page names (several candidates, or none on the page)
+      - preconditions nobody can set up
+      - words that conflict with GLOSSARY.md
+      - change wording ("increases by", "one more") that needs a before value
+  strict:
+    include: standard
+    add:
+      - every expected result names an exact text or value
+      - every step that deletes, sends or pays is confirmed by the author

@@ -1,8 +1,8 @@
 # UAT Studio
 
-An application for the UAT kit (`../agentic-testing-kit`): upload an Excel of test cases, answer the
+An application for the UAT kit (included in `kit/`): upload an Excel of test cases, answer the
 AI's questions, watch Playwright test your app, review the evidence and visual changes, and sign off.
-Everything the kit does in VS Code + Copilot, the app does with your Anthropic API key.
+Everything the kit does in VS Code + Copilot, the app does with an Anthropic API key or your GitHub Copilot plan.
 
 ## How it works
 
@@ -32,7 +32,11 @@ npm install
 npm run build
 ```
 
-The kit itself also needs `npm install` and `npx playwright install chromium` (the Setup page offers both).
+The kit itself (`kit/`) also needs `npm install` and `npx playwright install chromium` (the Setup page offers both).
+
+**The kit.** Studio uses `UAT_KIT_DIR` when it is set; else a kit folder next to uat-studio
+(`../agentic-testing-kit`), if there is one; else `kit/` in this repository. `kit/` is a clean copy: no `.env`,
+no runs, nothing generated for one app. Refresh it after changing the kit with `python tools/sync_kit.py`.
 
 ## Start
 
@@ -42,7 +46,7 @@ cd backend
 ```
 
 Open http://127.0.0.1:8765. Then:
-1. **Settings**: paste your Anthropic API key, Save, Test.
+1. **Settings**: choose who runs the AI: paste an Anthropic API key, or pick GitHub Copilot (a GitHub token or the GitHub CLI's sign-in). Test.
 2. **Setup**: fix anything missing, set the start page and allowed sites, add test accounts, and set up login if the app has one.
 3. **Runs**: upload your Excel (template on that page) and start.
 

@@ -1,0 +1,756 @@
+# Every switchable part of the UAT flow, and what it depends on.
+# Which parts are switched off is kept in config/profile.yaml (not here).
+# Tools: python scripts/features.py status | why <id> | off <id> | on <id> | check | page
+#
+# kind:      stage, agent, skill, rule, part, prompt, future, idea
+# area:      groups the parts on the switch page
+# status:    built (default) | planned (a future feature, cannot be switched on) | set-aside (decided against)
+# core:      true = cannot be switched off; the flow has no input or no result without it
+# requires:  hard dependencies. This part cannot work without them; switching one off switches this off too.
+# soft:      works without them, with the stated loss.
+# decisions: numbers of the design decisions in the UAT Flow Map / uat-flow-decisions.md, a design
+#            document kept outside this repository (it is not needed to run the kit)
+
+items:
+
+  # ---------------- Across all stages ----------------
+  - id: agent-orchestrator
+    name: Orchestrator
+    kind: agent
+    area: Across all stages
+    core: true
+    core_reason: it is the only agent that runs the stages and calls the others.
+    what: Walks the stages in the fixed order, calls the other agents, and stops for a person where the workflow says so.
+    requires: [workflow, progress-file, agents-md]
+    files: [.github/agents/uat-orchestrator.agent.md]
+    decisions: [12, 36]
+
+  - id: workflow
+    name: Fixed stage order
+    kind: part
+    area: Across all stages
+    core: true
+    core_reason: the orchestrator follows it; without it there is no stage order.
+    what: The order of the stages, the gate each must pass, and the stops for a person.
+    files: [config/workflow.yaml]
+    decisions: [12]
+
+  - id: progress-file
+    name: Progress file and resume
+    kind: part
+    area: Across all stages
+    core: true
+    core_reason: the orchestrator records every stage in it, and the run stage saves every result in it.
+    what: Records each stage and each test's result the moment it finishes, so a stopped run continues where it left off.
+    files: [scripts/progress.py, scripts/progress-reporter.ts]
+    decisions: [22, 40]
+
+  - id: agents-md
+    name: Shared map and rules (AGENTS.md)
+    kind: part
+    area: Across all stages
+    core: true
+    core_reason: every agent reads it first; the rules for all agents live there.
+    what: The short map every agent reads first, and the rules every agent follows.
+    files: [AGENTS.md, .github/copilot-instructions.md]
+    decisions: [12]
+
+  - id: self-tests
+    name: Self-tests of the scripts
+    kind: tool
+    area: Across all stages
+    what: A pytest suite (selftest/) that runs every script on a throw-away copy of the kit, with no browser or app. Run it after changing any script or config file with python scripts/selftest.py.
+    files: [selftest/, scripts/selftest.py]
+
+  - id: guard-hook
+    name: Guard hook
+    kind: part
+    area: Across all stages
+    core: true
+    core_reason: safety. It keeps the browser on the test site, blocks code inside the page, and asks before destructive clicks.
+    what: Runs before every tool call. Only the test site may be opened, never-click buttons are blocked, destructive clicks need a person's yes, and running code in the page is blocked.
+    files: [.github/hooks/guard.json, scripts/guard_hook.py, config/guardrails.yaml]
+    decisions: [22, 35]
+
+  - id: playwright
+    name: Playwright and its browser
+    kind: part
+    area: Across all stages
+    core: true
+    core_reason: it runs the tests.
+    what: The test runner, its settings, and the Chromium browser the tests run in.
+    files: [package.json, playwright.config.ts]
+    decisions: [18, 19]
+
+  - id: test-fixture
+    name: Shared test helper
+    kind: part
+    area: Across all stages
+    core: true
+    core_reason: every generated test imports it; tests fail to start without it.
+    what: The helper every generated test imports. It carries the screenshot and console capture parts below.
+    requires: [playwright]
+    files: [tests/fixtures.ts]
+    decisions: [19, 31]
+
+  - id: mcp-server
+    name: Playwright MCP server
+    kind: part
+    area: Across all stages
+    what: Gives Playwright's planner, generator and healer their browser and test tools.
+    requires: [playwright]
+    files: [.vscode/mcp.json]
+    decisions: [18]
+
+  - id: seed-test
+    name: Seed tests
+    kind: part
+    area: Across all stages
+    what: Opens the start page before each case. Playwright's planner and generator start from a seed and copy its shape; excel_to_plan.py writes one seed per test account, already logged in.
+    requires: [playwright, test-fixture]
+    soft:
+      - id: login-at-run-time
+        loss: Seeds for cases with a "Login as" account cannot log in, so the planner and generator see the login page.
+    files: [tests/seed.spec.ts, tests/seeds/]
+    decisions: [23]
+
+  - id: test-accounts
+    name: Test accounts (.env)
+    kind: part
+    area: Across all stages
+    what: Test accounts in a private .env file, named in plain words in the Excel's "Login as" column. Passwords never reach the Excel or the AI.
+    files: [.env.example]
+    decisions: [23]
+
+  - id: login-at-run-time
+    name: Login at run time (code, not AI)
+    kind: part
+    area: Across all stages
+    what: A test says test.use({ loginAs }) and the fixture logs in with tests/login.ts, once per account and run, saving the session in runs/<run-id>/auth/. Every test of that account starts logged in; check_tests.py verifies the account matches the Excel.
+    requires: [test-fixture, test-accounts]
+    files: [tests/login.ts, tests/fixtures.ts]
+
+  - id: skill-setting-up-login
+    name: Login setup and login check
+    kind: skill
+    area: Setup
+    what: Writes tests/login.ts once per app from the login page in the app map and the person's answers (login patterns reference), then proves every account logs in with check_login.py, printing OK/FAIL without secrets.
+    requires: [login-at-run-time]
+    files: [.github/skills/setting-up-login/, tests/login.check.spec.ts]
+
+  - id: agent-login-setup
+    name: Login setup agent
+    kind: agent
+    area: Setup
+    what: Asks which login pattern the app has and which accounts exist, has the planner map the login page, writes tests/login.ts and runs the login check. Never sees a password.
+    requires: [skill-setting-up-login, agent-pw-planner, skill-mapping-the-app]
+    files: [.github/agents/uat-login-setup.agent.md]
+
+  - id: prompt-setup-login
+    name: /setup-login command
+    kind: prompt
+    area: Setup
+    what: Sets up login for this app, once.
+    requires: [agent-login-setup]
+    files: [.github/prompts/setup-login.prompt.md]
+
+  - id: run-record
+    name: Run record and sealed sign-off
+    kind: part
+    area: Sign-off
+    core: true
+    core_reason: a sign-off that does not say what was tested, with what, is not evidence (decision 21).
+    what: progress.json records the Excel's hash and the tool versions; closing the sign-off hashes every file it rests on into manifest.json, and results.xlsx (Run sheet) is refused when any of them changed since.
+    requires: [progress-file]
+    files: [scripts/common.py]
+
+  - id: skill-tracking-usage
+    name: Model and token tracking
+    kind: skill
+    area: Across all stages
+    what: Records which model ran each stage and how many tokens it used (exact when known, otherwise estimated).
+    files: [.github/skills/tracking-usage/]
+    decisions: [32]
+
+  - id: prompt-run-uat
+    name: /run-uat command
+    kind: prompt
+    area: Across all stages
+    core: true
+    core_reason: it is how a run starts.
+    what: Starts a run from an Excel file.
+    requires: [agent-orchestrator]
+    files: [.github/prompts/run-uat.prompt.md]
+
+  - id: prompt-resume-uat
+    name: /resume-uat command
+    kind: prompt
+    area: Across all stages
+    what: Continues a stopped run from its progress file.
+    requires: [agent-orchestrator, progress-file]
+    files: [.github/prompts/resume-uat.prompt.md]
+    decisions: [22]
+
+  # ---------------- Setup ----------------
+  - id: skill-checking-setup
+    name: Setup check
+    kind: skill
+    area: Setup
+    what: Checks Node.js, Playwright and its browser, the Python packages, Playwright's agents, the hook, the test accounts, whether login is set up, and the start page.
+    soft:
+      - id: skill-setting-up-login
+        loss: Nobody proves that the test accounts log in before the run; a wrong login fails every test as "environment".
+    files: [.github/skills/checking-setup/]
+    decisions: [29]
+
+  - id: agent-setup
+    name: Setup agent
+    kind: agent
+    area: Setup
+    what: Explains what the setup check found and installs what is missing, only after asking.
+    requires: [skill-checking-setup]
+    files: [.github/agents/uat-setup.agent.md]
+    decisions: [29]
+
+  - id: stage-preflight
+    name: Stage 0 · Setup check before each run
+    kind: stage
+    area: Setup
+    what: A quick setup check before any test case is read.
+    requires: [agent-setup]
+    decisions: [29]
+
+  - id: prompt-setup-uat
+    name: /setup-uat command
+    kind: prompt
+    area: Setup
+    what: Checks and installs everything on a new machine.
+    requires: [agent-setup]
+    files: [.github/prompts/setup-uat.prompt.md]
+
+  # ---------------- Intake and clarification ----------------
+  - id: excel-template
+    name: Excel template
+    kind: part
+    area: Intake and clarification
+    core: true
+    core_reason: it is the input of the whole flow.
+    what: The agreed template, one row per test case, and its column rules.
+    files: [templates/uat-test-cases.xlsx, config/excel-template.yaml, templates/make_template.py]
+    decisions: [1, 11, 23]
+
+  - id: skill-reading-uat-excel
+    name: Excel reading and validation
+    kind: skill
+    area: Intake and clarification
+    core: true
+    core_reason: nothing can run before the Excel is read.
+    what: Reads the Excel into cases.json and reports every problem with its row and column, before any AI.
+    requires: [excel-template]
+    files: [.github/skills/reading-uat-excel/]
+    decisions: [1, 11, 23]
+
+  - id: stage-intake
+    name: Stage 1 · Intake
+    kind: stage
+    area: Intake and clarification
+    core: true
+    core_reason: it turns the Excel into the cases every other stage uses.
+    what: The Excel is read, validated and compared with the last run.
+    requires: [skill-reading-uat-excel, agent-orchestrator]
+    soft:
+      - id: skill-detecting-test-changes
+        loss: Every case is treated as new, so every case is clarified and generated again, with AI, on every run.
+    decisions: [1, 10]
+
+  - id: skill-detecting-test-changes
+    name: Change detection
+    kind: skill
+    area: Intake and clarification
+    what: Sorts cases into unchanged, changed, new and missing. Unchanged cases reuse their tests with no AI and keep their earlier clarifications.
+    requires: [skill-reading-uat-excel]
+    files: [.github/skills/detecting-test-changes/]
+    decisions: [10, 38, 39]
+
+  - id: manual-cases
+    name: Manual cases (Automation column)
+    kind: part
+    area: Intake and clarification
+    what: A case marked "manual" in the Excel is performed by a person. It is not clarified, generated or run; it stays in the results with the recommendation MANUAL, and the person records PASS, FAIL or NOT_RUN for it before the sign-off can close.
+    requires: [excel-template, skill-verifying-evidence, skill-writing-results-excel]
+    files: [config/excel-template.yaml, config/signoff.yaml]
+
+  - id: strictness-levels
+    name: Strictness levels
+    kind: rule
+    area: Intake and clarification
+    what: Basic, Standard or Strict questions, at most 5 per round.
+    files: [config/strictness.yaml]
+    decisions: [25]
+
+  - id: skill-grilling-test-cases
+    name: Grilling questions
+    kind: skill
+    area: Intake and clarification
+    what: Numbered questions with a recommended answer until every step and expected result is unambiguous.
+    requires: [strictness-levels]
+    files: [.github/skills/grilling-test-cases/]
+    decisions: [3, 25]
+
+  - id: skill-maintaining-glossary
+    name: Living glossary
+    kind: skill
+    area: Intake and clarification
+    what: Writes each term down the moment the author explains it, and checks later cases against it.
+    files: [.github/skills/maintaining-glossary/, GLOSSARY.md]
+    decisions: [13]
+
+  - id: skill-writing-questionnaires
+    name: Written questionnaire
+    kind: skill
+    area: Intake and clarification
+    what: When the author cannot answer live, the questions go into a document and that part of the run waits.
+    files: [.github/skills/writing-questionnaires/]
+    decisions: [13]
+
+  - id: agent-clarifier
+    name: Clarifier agent
+    kind: agent
+    area: Intake and clarification
+    what: Talks to the test author. Has no browser tools, so it can only ask, never act.
+    requires: [skill-grilling-test-cases]
+    soft:
+      - id: skill-maintaining-glossary
+        loss: Terms are not written down, so the same word can mean different things in later rounds.
+      - id: skill-writing-questionnaires
+        loss: When the author is away, the run waits without a written list of questions.
+      - id: skill-detecting-test-changes
+        loss: Uncertain changes are not confirmed with the person.
+    files: [.github/agents/uat-clarifier.agent.md]
+    decisions: [3, 10, 13, 25]
+
+  - id: stage-clarify
+    name: Stage 2 · Clarification
+    kind: stage
+    area: Intake and clarification
+    what: Changed and new cases are made unambiguous before any test is written.
+    requires: [agent-clarifier]
+    decisions: [3, 13, 25]
+
+  # ---------------- Planning and generation ----------------
+  - id: skill-writing-playwright-plan
+    name: Plan copying
+    kind: skill
+    area: Planning and generation
+    what: Copies the cases into Playwright's plan layout, one plan per Group, and lists the cases to generate.
+    files: [.github/skills/writing-playwright-plan/]
+    decisions: [24]
+
+  - id: stage-plan
+    name: Stage 3 · Test plan
+    kind: stage
+    area: Planning and generation
+    what: The run's accounts are proven to log in, then a script writes the plans and the seeds the planner and generator read.
+    requires: [skill-writing-playwright-plan]
+    soft:
+      - id: skill-setting-up-login
+        loss: The login check before planning is skipped.
+    decisions: [24]
+
+  - id: agent-pw-planner
+    name: Playwright planner
+    kind: agent
+    area: Planning and generation
+    what: Playwright's own planner, unmodified. Tries each step in the live app and reports mismatches.
+    requires: [mcp-server, seed-test]
+    files: [.github/agents/playwright-test-planner.agent.md]
+    decisions: [4, 14, 35]
+
+  - id: skill-mapping-the-app
+    name: App map
+    kind: skill
+    area: Planning and generation
+    what: Saves the pages and the exact names of their elements from the planner's answer, and collects its mismatches.
+    requires: [agent-pw-planner]
+    files: [.github/skills/mapping-the-app/, app-map/]
+    decisions: [14, 35]
+
+  - id: stage-planner-check
+    name: Stage 4 · Planner check
+    kind: stage
+    area: Planning and generation
+    what: The planner checks each step against the live app; mismatches go back to the author.
+    requires: [stage-plan, agent-pw-planner, skill-mapping-the-app, guard-hook]
+    decisions: [4, 14]
+
+  - id: agent-pw-generator
+    name: Playwright generator
+    kind: agent
+    area: Planning and generation
+    what: Playwright's own generator, unmodified. Walks each case live and writes one test file per case.
+    requires: [mcp-server, seed-test, test-fixture]
+    files: [.github/agents/playwright-test-generator.agent.md]
+    decisions: [15, 16, 18, 19]
+
+  - id: stage-generate
+    name: Stage 5 · Generator
+    kind: stage
+    area: Planning and generation
+    what: New and changed cases become Playwright tests.
+    requires: [stage-plan, agent-pw-generator]
+    soft:
+      - id: stage-planner-check
+        loss: The generator has no app map and guesses element names; mismatches surface only when tests fail.
+    decisions: [16, 18]
+
+  # ---------------- Power Apps canvas ----------------
+  - id: canvas-helpers
+    name: Canvas helpers and fixture
+    kind: part
+    area: Power Apps canvas
+    what: tests/canvas.ts and tests/canvas-fixtures.ts reach controls inside the canvas player frame by data-control-name, type with real keystrokes so Power Fx OnChange fires, click through gallery overlays and wait for slow first loads. Adapted from microsoft/power-platform-playwright-samples (MIT).
+    requires: [test-fixture]
+    files: [tests/canvas.ts, tests/canvas-fixtures.ts, config/power-platform.yaml]
+
+  - id: skill-testing-canvas-apps
+    name: Canvas test rules
+    kind: skill
+    area: Power Apps canvas
+    what: How the generator writes and the healer repairs canvas tests; check_tests.py refuses fill(), pressSequentially(), frameLocator(), force clicks and page-level control locators in canvas tests.
+    requires: [canvas-helpers, skill-checking-generated-tests]
+    files: [.github/skills/testing-canvas-apps/]
+
+  - id: skill-mapping-canvas-apps
+    name: Canvas app map
+    kind: skill
+    area: Power Apps canvas
+    what: Records each screen and control with its data-control-name, type and screen, plus the control that proves the app has loaded.
+    requires: [skill-mapping-the-app]
+    files: [.github/skills/mapping-canvas-apps/]
+
+  - id: agent-canvas-specialist
+    name: Canvas specialist
+    kind: agent
+    area: Power Apps canvas
+    what: Maps canvas apps in the planner check (Playwright's planner sees only an empty frame) and reports steps the app cannot do as written.
+    requires: [mcp-server, seed-test, skill-mapping-canvas-apps, skill-testing-canvas-apps, guard-hook]
+    files: [.github/agents/uat-canvas-specialist.agent.md]
+
+  - id: prompt-map-canvas-app
+    name: /map-canvas-app command
+    kind: prompt
+    area: Power Apps canvas
+    what: Maps a canvas app into the app map, once or after the app changed.
+    requires: [agent-canvas-specialist]
+    files: [.github/prompts/map-canvas-app.prompt.md]
+
+  # ---------------- Test check ----------------
+  - id: skill-checking-generated-tests
+    name: Test check script
+    kind: skill
+    area: Test check
+    what: Checks every generated or repaired test against the rules below before it counts.
+    files: [.github/skills/checking-generated-tests/, config/test-check-rules.yaml]
+    decisions: [17]
+
+  - id: stage-test-check
+    name: Stage 6 · Test check
+    kind: stage
+    area: Test check
+    what: Untrustworthy tests go back to the generator before they can count.
+    requires: [skill-checking-generated-tests]
+    decisions: [17]
+
+  - id: rule-step-comments
+    name: Rule · every Excel step is a comment
+    kind: rule
+    area: Test check
+    what: Each numbered Excel step appears as a comment in the test, so no step was skipped.
+    requires: [skill-checking-generated-tests]
+    decisions: [15, 17]
+
+  - id: rule-proves-nothing
+    name: Rule · no checks that prove nothing
+    kind: rule
+    area: Test check
+    what: Rejects always-true checks such as the page title, the button just clicked, or "the list exists".
+    requires: [skill-checking-generated-tests]
+    decisions: [17]
+
+  - id: rule-checks-on-app-map
+    name: Rule · checks only on elements the planner saw
+    kind: rule
+    area: Test check
+    what: Every expected result must be checked on an element recorded in the app map, under its exact name.
+    requires: [skill-checking-generated-tests, stage-planner-check]
+    decisions: [14, 17]
+
+  - id: rule-quoted-values
+    name: Rule · quoted values must be checked
+    kind: rule
+    area: Test check
+    what: Quoted texts and amounts in an expected result, such as "Added Taxi" or €12.50, must appear in its check.
+    requires: [skill-checking-generated-tests]
+    decisions: [17]
+
+  - id: rule-screenshot-every-step
+    name: Rule · a screenshot line in every step
+    kind: rule
+    area: Test check
+    what: Every step's block in the test ends with await shot(N).
+    requires: [skill-checking-generated-tests, step-screenshots]
+    decisions: [19]
+
+  - id: skill-checking-flakiness
+    name: Flakiness check
+    kind: skill
+    area: Test check
+    what: New and repaired tests run 3 times in a row before they are trusted.
+    requires: [playwright]
+    files: [.github/skills/checking-flakiness/]
+    decisions: [30]
+
+  # ---------------- Run ----------------
+  - id: stage-run
+    name: Stage 7 · Run
+    kind: stage
+    area: Run
+    core: true
+    core_reason: it produces the results.
+    what: The saved tests run with no AI, each run with its own evidence folder.
+    requires: [playwright, test-fixture, progress-file]
+    files: [scripts/run_tests.py]
+    decisions: [18, 37]
+
+  - id: step-screenshots
+    name: Screenshot after every step
+    kind: part
+    area: Run
+    what: Saves one screenshot per Excel step, named after its Test ID and step.
+    requires: [test-fixture]
+    decisions: [19]
+
+  - id: traces
+    name: Trace for every test
+    kind: part
+    area: Run
+    what: A step-through recording of the page before and after each action.
+    requires: [playwright]
+    decisions: [19]
+
+  - id: video-on-failure
+    name: Video of failed tests
+    kind: part
+    area: Run
+    what: Keeps a video only when a test fails.
+    requires: [playwright]
+    decisions: [19]
+
+  - id: console-capture
+    name: Console and network capture
+    kind: part
+    area: Run
+    what: Records every console error and failed server call in every test, with the step it happened in.
+    requires: [test-fixture]
+    decisions: [31]
+
+  # ---------------- Failures ----------------
+  - id: skill-diagnosing-failures
+    name: Diagnosis with three causes
+    kind: skill
+    area: Failures
+    what: Explains each failure and labels it app broken, test broken or environment.
+    files: [.github/skills/diagnosing-failures/]
+    decisions: [5, 20]
+
+  - id: skill-reproducing-failures
+    name: Reproduce before reporting
+    kind: skill
+    area: Failures
+    what: Re-runs a suspected app bug up to 3 times before it reaches sign-off.
+    requires: [playwright]
+    files: [.github/skills/reproducing-failures/]
+    decisions: [20]
+
+  - id: agent-diagnostician
+    name: Diagnostician agent
+    kind: agent
+    area: Failures
+    what: Diagnoses failures, reproduces suspected bugs, and asks the person before any repair.
+    requires: [skill-diagnosing-failures]
+    soft:
+      - id: skill-reproducing-failures
+        loss: Suspected app bugs reach sign-off unconfirmed, so they are recommended CONCERNS, never FAIL.
+      - id: console-capture
+        loss: Diagnoses do not see the console and network errors of the failed test.
+    files: [.github/agents/uat-diagnostician.agent.md]
+    decisions: [5, 20]
+
+  - id: stage-failures
+    name: Stage 8 · Failures
+    kind: stage
+    area: Failures
+    what: Every failure gets a diagnosis and a cause before sign-off.
+    requires: [agent-diagnostician]
+    decisions: [5, 20]
+
+  - id: assertion-lock
+    name: Assertion lock
+    kind: rule
+    area: Failures
+    what: A repair may not add, remove or change what a test checks.
+    requires: [skill-checking-generated-tests]
+    decisions: [33]
+
+  - id: agent-pw-healer
+    name: Playwright healer
+    kind: agent
+    area: Failures
+    what: Playwright's own healer, unmodified. Its instructions tell it to make tests pass, so it only ever runs behind the assertion lock.
+    requires: [mcp-server, assertion-lock]
+    files: [.github/agents/playwright-test-healer.agent.md]
+    decisions: [5, 20, 33]
+
+  - id: repairs
+    name: Approved repairs
+    kind: part
+    area: Failures
+    what: A test labelled "test broken" is repaired by the healer after the person says yes, then run again.
+    requires: [stage-failures, agent-pw-healer]
+    soft:
+      - id: skill-checking-flakiness
+        loss: A repaired test is trusted after a single pass.
+    decisions: [5, 33]
+
+  # ---------------- Sign-off ----------------
+  - id: skill-verifying-evidence
+    name: No PASS without evidence
+    kind: skill
+    area: Sign-off
+    core: true
+    core_reason: no PASS recommendation without evidence, checked by a script (decision 21).
+    what: A script, not the AI, decides whether a passed test has enough evidence for a PASS recommendation.
+    soft:
+      - id: stage-test-check
+        loss: A PASS no longer needs the test check, so a test that proves nothing can be recommended PASS.
+      - id: step-screenshots
+        loss: A PASS no longer needs a screenshot of every step.
+      - id: traces
+        loss: A PASS no longer needs a trace.
+    files: [.github/skills/verifying-evidence/, config/signoff.yaml]
+    decisions: [21]
+
+  - id: skill-writing-results-excel
+    name: Results Excel and sign-off record
+    kind: skill
+    area: Sign-off
+    core: true
+    core_reason: it is the output of the whole flow.
+    what: Records the person's decisions and waivers, seals the sign-off, and writes results.xlsx with its Run sheet.
+    requires: [run-record]
+    files: [.github/skills/writing-results-excel/]
+    decisions: [6, 7]
+
+  - id: agent-reporter
+    name: Reporter agent
+    kind: agent
+    area: Sign-off
+    core: true
+    core_reason: it records the sign-off decisions.
+    what: Shows the recommendations, asks the person for each decision, and writes the results.
+    requires: [skill-verifying-evidence, skill-writing-results-excel]
+    soft:
+      - id: skill-tracking-usage
+        loss: The Usage sheet of the results is empty.
+      - id: stage-screens
+        loss: No changed screens shown at sign-off.
+    files: [.github/agents/uat-reporter.agent.md]
+    decisions: [6, 7, 21]
+
+  - id: stage-signoff
+    name: Stage 9 · Sign-off
+    kind: stage
+    area: Sign-off
+    core: true
+    core_reason: a person must decide the results (decision 6).
+    what: The AI recommends, a person decides, and the results Excel is written.
+    requires: [agent-reporter]
+    decisions: [6, 7, 21]
+
+  - id: prompt-sign-off
+    name: /sign-off command
+    kind: prompt
+    area: Sign-off
+    what: Opens the sign-off conversation for a finished run.
+    requires: [agent-reporter]
+    files: [.github/prompts/sign-off.prompt.md]
+
+  - id: skill-comparing-screens
+    name: Screen comparison
+    kind: skill
+    area: Sign-off
+    what: Compares each step's screenshot with the last signed-off run. Advisory only.
+    requires: [step-screenshots]
+    files: [.github/skills/comparing-screens/, config/screen-compare.yaml]
+    decisions: [26, 34]
+
+  - id: stage-screens
+    name: Stage 9a · Changed screens
+    kind: stage
+    area: Sign-off
+    what: Changed screens are found before sign-off and shown side by side.
+    requires: [skill-comparing-screens]
+    decisions: [26]
+
+  - id: agent-screen-reviewer
+    name: AI screen review
+    kind: agent
+    area: Sign-off
+    what: Above a threshold, labels each changed screen explained or unexplained, seeing only the pictures.
+    requires: [stage-screens]
+    files: [.github/agents/uat-screen-reviewer.agent.md]
+    decisions: [27, 34]
+
+  # ---------------- Future features (planned, not built) ----------------
+  - { id: f1-test-data, name: "F1 · Test data isolation and cleanup", kind: future, area: Future features, status: planned,
+      what: "Everything tests create gets a prefix and run number; only tagged data is removed afterwards.", requires: [stage-run, agent-pw-generator] }
+  - { id: f4-login-mfa, name: "F4 · MFA and SSO logins", kind: future, area: Future features, status: planned,
+      what: "One-time codes (authenticator, SMS, email) and identity-provider logins; today a person captures such a session by hand (login-patterns.md).", requires: [login-at-run-time] }
+  - { id: f5-email-sms, name: "F5 · Email and SMS checks", kind: future, area: Future features, status: planned,
+      what: "\"A confirmation email arrives with a link\" as an expected result.", requires: [excel-template, skill-grilling-test-cases] }
+  - { id: f6-downloads, name: "F6 · Downloaded files against an approved version", kind: future, area: Future features, status: planned,
+      what: "Approval testing for PDFs and Excel exports.", requires: [stage-run] }
+  - { id: f8-run-limits, name: "F8 · Run limits and loop detection", kind: future, area: Future features, status: planned,
+      what: "Maximum steps, time and cost per run, and spotting an agent going in circles.", requires: [agent-orchestrator, skill-tracking-usage] }
+  - { id: f9-browsers, name: "F9 · Browsers and screen sizes", kind: future, area: Future features, status: planned,
+      what: "Edge, Firefox, Safari and mobile sizes besides Chrome.", requires: [playwright] }
+  - { id: f10-golden-test, name: "F10 · Golden test file and planted bugs", kind: future, area: Future features, status: planned,
+      what: "A fixed Excel against an app with known bugs, re-run after any change to our agents.", requires: [stage-run, stage-test-check] }
+  - { id: f11-two-environments, name: "F11 · Comparing two environments", kind: future, area: Future features, status: planned,
+      what: "The same tests on UAT and production, with the differences reported.", requires: [stage-run, guard-hook] }
+  - { id: f12-quarantine, name: "F12 · Flaky test quarantine", kind: future, area: Future features, status: planned,
+      what: "Unreliable tests keep running but cannot block anything.", requires: [skill-checking-flakiness] }
+  - { id: f13-aria, name: "F13 · Page structure comparison", kind: future, area: Future features, status: planned,
+      what: "Compares the buttons, fields and texts on each screen between runs.", requires: [test-fixture] }
+  - { id: f14-accessibility, name: "F14 · New accessibility problems", kind: future, area: Future features, status: planned,
+      what: "Reports only accessibility violations that are new since the last accepted run.", requires: [test-fixture] }
+  - { id: f15-cheaper-models, name: "F15 · Cheaper model for simple jobs", kind: future, area: Future features, status: planned,
+      what: "Smaller models where the usage log shows simple, costly jobs.", requires: [skill-tracking-usage] }
+  - { id: f16-before-after, name: "F16 · Before/after expected results", kind: future, area: Future features, status: planned,
+      what: "Expected results such as \"the total increases by 12.50\".", requires: [agent-clarifier, skill-checking-generated-tests] }
+  - { id: f18-data-privacy, name: "F18 · Data privacy of the UAT environment", kind: future, area: Future features, status: planned,
+      what: "Confirm the UAT system holds no real personal data, or mask it, since screenshots go to the AI.", requires: [] }
+  - { id: f19-evidence-storage, name: "F19 · Evidence storage and retention", kind: future, area: Future features, status: planned,
+      what: "Where traces, videos and screenshots are kept, and for how long.", requires: [stage-run] }
+  - { id: f20-dynamic-template, name: "F20 · Dynamic Excel template building", kind: future, area: Future features, status: planned,
+      what: "Build the Excel template for an app: its columns, drop-downs and how-to sheet, instead of only the one fixed workbook.", requires: [excel-template] }
+
+  # ---------------- Ideas set aside ----------------
+  - { id: idea-pre-mortem, name: "Pre-mortem on each test case", kind: idea, area: Ideas set aside, status: set-aside,
+      what: "Asking how a test could pass while the app is broken.", requires: [agent-clarifier], decisions: [13] }
+  - { id: idea-manager-summary, name: "Plain-language manager summary", kind: idea, area: Ideas set aside, status: set-aside,
+      what: "A short summary of the run for managers at the top of the results.", requires: [agent-reporter], decisions: [21] }
+  - { id: idea-data-types, name: "Data types in the app map", kind: idea, area: Ideas set aside, status: set-aside,
+      what: "Recording what kind of value each field holds.", requires: [skill-mapping-the-app], decisions: [28] }
+  - { id: idea-network-replay, name: "Recorded network replay", kind: idea, area: Ideas set aside, status: set-aside,
+      what: "Replaying recorded server answers; UAT must test the real server.", requires: [stage-run] }

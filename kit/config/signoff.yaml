@@ -1,0 +1,30 @@
+# Sign-off rules (decisions 6, 21). Used by verify_evidence.py, record_decision.py and the reporter.
+
+verdicts: [PASS, CONCERNS, FAIL, WAIVED]
+sign_off_unit: group                 # or: test
+
+pass_requires:                       # checked by verify_evidence.py, never by the AI
+  - the test passed in this run
+  - the test check found a real check for every expected result
+  - a screenshot exists for every step
+  - a trace exists
+
+when_missing: recommend CONCERNS and name what is missing
+
+recommendation_for_failures:         # from the diagnosis (diagnoses.json)
+  app_broken + reproduced: FAIL
+  app_broken + could_not_reproduce: CONCERNS     # flagged as unreliable
+  app_broken + already_fixed: CONCERNS
+  test_broken: CONCERNS              # the app was not judged; repair the test and re-run
+  environment: CONCERNS              # re-run later; not counted against the app
+  not_diagnosed: CONCERNS
+
+group_recommendation: worst          # FAIL over CONCERNS over PASS; manual cases do not count in it
+
+waiver_fields: [unit, accepted_by, reason, date]   # WAIVED needs all of them
+
+manual_cases:                        # Automation = manual in the Excel: a person performs the case
+  ai_recommendation: MANUAL          # never PASS/CONCERNS/FAIL from the AI, because no evidence exists
+  results: [PASS, FAIL, NOT_RUN]     # recorded by the person: record_decision.py --manual TC-09 --result PASS --by ...
+  fields: [result, by, note, evidence]   # evidence = where the person's proof is (a file, a ticket, a folder)
+  needed_before_complete: true       # the sign-off cannot close while a manual case has no result

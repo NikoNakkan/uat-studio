@@ -1,0 +1,26 @@
+# The agreed Excel template, as data. read_excel.py and validate.py use it;
+# templates/uat-test-cases.xlsx is the file people fill in.
+
+sheet: Test cases                       # falls back to the first sheet
+layout: one_row_per_test_case
+
+columns:
+  test_id:          { header: "Test ID",          required: true, unique: true }
+  group:            { header: "Group",            required: true }
+  title:            { header: "Title",            required: true }
+  start_page:       { header: "Start page",       required: true, type: url }
+  login_as:         { header: "Login as",         required: false, must_exist_in: .env.example }
+  preconditions:    { header: "Preconditions",    required: false }
+  steps:            { header: "Steps",            required: true, format: numbered_lines }
+  expected_results: { header: "Expected results", required: true, format: step_numbered_lines }
+  automation:       { header: "Automation",       required: false, values: [auto, manual], default: auto }
+  priority:         { header: "Priority",         required: false, values: [High, Medium, Low] }
+  notes:            { header: "Notes",            required: false }
+
+# Automation: "auto" (or empty) = the agents generate and run a test. "manual" = a person performs the
+# case (email, phone, a third-party site, a printed document...); it is never clarified, generated or
+# run, but it stays in the results, where the person records its outcome at sign-off.
+
+# Fields that change what a test does. Change detection compares only these;
+# editing Priority or Notes never regenerates a test.
+meaning_fields: [group, title, start_page, login_as, preconditions, steps, expected_results, automation]

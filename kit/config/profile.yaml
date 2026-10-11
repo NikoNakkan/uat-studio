@@ -1,0 +1,7 @@
+# Parts of the UAT flow that are switched off. Everything built and not listed here is on.
+# Change it with: python scripts/features.py off <id>   (shows what else switches off, then asks)
+#                 python scripts/features.py on <id>    (switches on what it needs, too)
+# or paste the profile from the switch page (python scripts/features.py page).
+# Ids and dependencies: config/features.yaml
+
+switched_off: []

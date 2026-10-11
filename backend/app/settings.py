@@ -16,7 +16,10 @@ from pydantic import BaseModel, Field
 from .catalog import AGENTS, MODELS, SONNET, public_catalog
 
 APP_DIR = Path(__file__).resolve().parents[2]                    # uat-studio/
-KIT_DIR = Path(os.environ.get("UAT_KIT_DIR", APP_DIR.parent / "agentic-testing-kit")).resolve()
+# The kit: UAT_KIT_DIR when set; else a kit folder next to uat-studio (an existing setup keeps its runs); else the
+# copy inside this repository (kit/, refreshed with tools/sync_kit.py), so one clone is enough on a new device.
+_SIBLING_KIT = APP_DIR.parent / "agentic-testing-kit"
+KIT_DIR = Path(os.environ.get("UAT_KIT_DIR") or (_SIBLING_KIT if _SIBLING_KIT.is_dir() else APP_DIR / "kit")).resolve()
 STATE_DIR = Path(os.environ.get("UAT_STUDIO_HOME", Path.home() / ".uat-studio"))
 SETTINGS_FILE = STATE_DIR / "settings.json"
 FRONTEND_DIST = APP_DIR / "frontend" / "dist"

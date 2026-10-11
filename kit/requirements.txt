@@ -1,0 +1,4 @@
+openpyxl>=3.1
+pyyaml>=6.0
+pillow>=10.0   # screen comparison (decision 26)
+pytest>=8.0    # the kit's self-tests: python scripts/selftest.py

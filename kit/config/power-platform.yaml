@@ -1,0 +1,27 @@
+# Power Platform apps (testing-canvas-apps and mapping-canvas-apps skills, uat-canvas-specialist agent).
+# Source of the facts below: Microsoft's power-platform-playwright-samples (MIT) and its Microsoft Learn docs:
+#   https://github.com/microsoft/power-platform-playwright-samples
+#   https://learn.microsoft.com/power-platform/developer/playwright-samples/overview
+# Power Apps Test Engine is deprecated (April 2026; repository removed 1 November 2026): do not use it.
+
+canvas:
+  # A case is a canvas app when its start page is on one of these hosts (excel_to_plan.py marks it).
+  play_hosts: [apps.powerapps.com, apps.preview.powerapps.com]
+  frame: 'iframe[name="fullscreen-app-host"]'   # every control lives in this frame in play mode
+  control_attribute: data-control-name          # the control's name in Power Apps Studio
+  gallery_item: '[data-control-part="gallery-item"]'
+  ready_timeout_ms: 60000                       # Dataverse-backed screens can take 10-60 s to show data
+  fixture: ../canvas-fixtures                   # what generated canvas tests import
+
+# Sites a Power Platform UAT needs in config/guardrails.yaml allowed_origins (add only what you test).
+origins:
+  canvas: [https://apps.powerapps.com, https://login.microsoftonline.com]
+  maker_portal: [https://make.powerapps.com]
+  model_driven: ["https://*.crm.dynamics.com", "https://*.crm4.dynamics.com"]   # your region's crm domain
+
+# Microsoft's toolkit is NOT installed from npm: the npm name power-platform-playwright-toolkit is a
+# 0.0.1-security placeholder. Clone and build the repository instead (npm install && npm run build).
+toolkit:
+  repository: https://github.com/microsoft/power-platform-playwright-samples
+  local_path: ../power-platform-playwright-samples
+  sign_in: npm run auth:headful    # in packages/e2e-tests: saves .playwright-ms-auth/state-<email>.json

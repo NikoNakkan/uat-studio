@@ -1,0 +1,68 @@
+# Rules a generated or repaired test must pass before it is trusted (decisions 17, 30, 33).
+# Applied by .github/skills/checking-generated-tests/scripts/check_tests.py.
+
+required:
+  uses_uat_fixture: true             # imports test from tests/fixtures.ts (console capture, screenshots, login)
+  mentions_test_id: true             # the Excel Test ID is in the test title
+  at_least_one_check: true
+  every_excel_step_has_a_comment: true
+  step_comment_similarity: 0.8       # how close the comment must be to the Excel step text (0-1)
+  screenshot_after_every_step: true  # await shot(N) inside each step's block
+  login_matches_excel: true          # test.use({ loginAs: '<KEY>' }) matches the "Login as" column; no password in the test
+  goto_only_allowed_origins: true    # every goto('http...') stays on config/guardrails.yaml allowed_origins
+
+forbidden:                           # plain text that must not appear in a test (comments are ignored)
+  # ways to not run or to wait blindly
+  - "test.skip"
+  - "test.fixme"
+  - "test.only"
+  - "waitForTimeout"
+  - "networkidle"
+  - "page.pause"
+  # ways to fake the app or the server: a UAT test must see the real app (idea-network-replay was set aside)
+  - "route("                         # page.route / context.route: replaces server answers
+  - "unroute("
+  - "evaluate("                      # runs code inside the page
+  - "evaluateHandle("
+  - "$eval("
+  - "addInitScript("
+  - "setContent("
+  - "page.request"                   # talks to the server behind the UI's back
+  - "context.request"
+  - "setExtraHTTPHeaders("
+  # ways to make a check not count without touching its text (assertion lock, decision 33)
+  - "try {"
+  - "try{"
+  - ".catch("
+  - "catch ("
+  - "catch("
+  - "if ("                           # UAT tests are straight lines: a step is done or the test fails
+  - "if("
+
+proves_nothing:                      # checks that are always true, so they never count as evidence
+  title_only: true                   # expect(page).toHaveTitle(...)
+  just_clicked_visible: true         # visibility check on the element that was just clicked
+  container_exists: [list, listitem, table, grid, rowgroup, region, main, form, dialog]
+  canvas_container_types: [gallery, container, screen, form]   # canvas controls whose mere presence proves nothing
+  constant: true                     # expect(true), expect(1).toBe(1)
+
+expected_results:
+  must_have_check_in_step: true      # each "N. ..." expected result needs a real check in step N's block
+  must_use_app_map: true             # that check targets an element recorded in app-map/app-map.yaml
+  quoted_values_must_appear: true    # "Added Taxi", €12.50 in the expected result must appear in the check
+
+after_repair:
+  assertion_lock: true               # a repair may not add, remove or change any expect(...) line,
+                                     # nor redefine a locator variable an expect uses
+
+flakiness:
+  new_tests_must_pass: 3             # runs in a row before a new or regenerated test is trusted
+
+# Power Apps canvas apps (testing-canvas-apps skill). Applied to tests that import ../canvas-fixtures.
+canvas:
+  forbidden:
+    ".fill(": "it changes the text without firing Power Fx OnChange; type with canvas.type(...)"
+    "pressSequentially(": "it does not fire Power Fx OnChange either; type with canvas.type(...)"
+    "frameLocator(": "the canvas fixture already reaches the player frame; use canvas.control('Name')"
+    "force: true": "click through overlays with canvas.click(...), which only forces when an overlay intercepts"
+    ".nth(": "a virtualised gallery renders other rows after it scrolls, so a position points at another row; pick the row by its text with filter({ hasText })"
