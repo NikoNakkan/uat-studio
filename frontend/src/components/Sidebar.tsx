@@ -53,11 +53,16 @@ export function Sidebar() {
   return (
     <aside className={`shrink-0 border-b border-rail-line bg-rail text-rail-ink md:flex md:h-full md:flex-col md:overflow-y-auto md:overflow-x-hidden md:border-b-0 md:border-r ${collapsed ? 'md:w-14' : 'md:w-56'}`}>
       <div className="h-1 bg-accent" aria-hidden />
-      <div className={`flex items-center gap-2.5 px-4 py-3 ${collapsed ? 'md:flex-col md:px-2' : ''}`}>
+      <div className={`flex items-center gap-1.5 py-3 pl-4 pr-2 ${collapsed ? 'md:flex-col md:gap-2 md:px-2' : ''}`}>
         <span className="grid h-8 w-8 shrink-0 place-items-center bg-accent text-[13px] font-bold tracking-tight text-accent-ink">EY</span>
         <div className={`min-w-0 ${hide}`}><div className="font-semibold leading-tight">UAT Studio</div>
           <div className="text-xs leading-tight text-rail-muted">Excel in · evidence out</div></div>
         <ThemeButton />
+        <button type="button" onClick={toggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Show the sidebar' : 'Fold the sidebar to icons'}
+          title={collapsed ? 'Show the sidebar' : 'Fold the sidebar to icons'}
+          className="hidden h-8 w-8 shrink-0 place-items-center rounded-md text-rail-muted hover:bg-rail-hover hover:text-rail-ink md:grid">
+          <Icon name={collapsed ? 'expand' : 'collapse'} />
+        </button>
       </div>
       <ProjectSwitcher compact={collapsed} />
       <nav className={`flex gap-1 overflow-x-auto px-2 pb-2 md:flex-1 md:flex-col md:gap-3 md:pb-4 ${collapsed ? 'md:items-center' : ''}`} aria-label="Pages">
@@ -86,11 +91,6 @@ export function Sidebar() {
           ? <Status pending label="Checking for questions…" hide={hide} />
           : open.data?.length ? <WaitingLink open={open.data} compact={collapsed} /> : null}
       </div>
-      <button type="button" onClick={toggle} aria-expanded={!collapsed} title={collapsed ? 'Show the sidebar' : 'Fold the sidebar to icons'}
-        className={`hidden items-center gap-2 border-t border-rail-line px-4 py-2.5 text-xs text-rail-muted hover:bg-rail-hover hover:text-rail-ink md:flex ${collapsed ? 'md:justify-center md:px-2' : ''}`}>
-        <Icon name={collapsed ? 'expand' : 'collapse'} />
-        <span className={hide}>Collapse</span>
-      </button>
     </aside>
   );
 }
