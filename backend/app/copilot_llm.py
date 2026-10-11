@@ -87,9 +87,11 @@ class _Conversation:
             self.write += data.cache_write_tokens or 0
             self.requests += data.cost or 0
             self.model = data.model or self.model
-        elif kind == "assistant.turn_end":
+        elif kind == "assistant.turn_start":
+            # A turn beyond the limit is stopped as it starts; a last turn that answers is not cut off.
             self.turns += 1
-            if self.turns >= self.turns_left and not self.done.is_set() and self.aborting is None:
+            if self.turns > self.turns_left and self.aborting is None:
+                self.turns -= 1
                 self.stopped = "max_turns"
                 self.aborting = asyncio.ensure_future(self.session.abort())
         elif kind == "session.error":
