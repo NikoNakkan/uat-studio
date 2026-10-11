@@ -4,10 +4,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, type RunDetail } from '../api';
 import { RunActions } from '../components/RunActions';
 import { Stepper, type StepDef } from '../components/Stepper';
+import { CostView } from '../components/run/CostView';
 import { FilesView, UsageView } from '../components/run/RunDetails';
 import { stageOutput } from '../components/run/StageOutput';
 import { STAGES, stageMeta, stageState } from '../components/run/stages';
 import { useRun } from '../lib/queries';
+import { usd } from '../lib/money';
 import { useAction } from '../lib/useAction';
 import { Button, Loading, Notice, errorText, useTitle } from '../ui';
 
@@ -37,8 +39,9 @@ export function RunPage() {
     <div className="mx-auto grid max-w-5xl gap-4">
       <RunHeader runId={runId} r={r} />
       <Stepper label="Stages of this run" steps={steps} />
+      <CostView cost={r.cost} />
       <details className="rounded-lg border border-line bg-surface p-3 text-sm">
-        <summary className="cursor-pointer font-medium">More: model usage and every file of this run</summary>
+        <summary className="cursor-pointer font-medium">More: tokens of every agent call and every file of this run</summary>
         <div className="mt-3 grid gap-4"><UsageView d={r.data} /><FilesView runId={runId} /></div>
       </details>
     </div>
@@ -60,7 +63,8 @@ function RunHeader({ runId, r }: { runId: string; r: RunDetail }) {
         <div>
           <Link to="/runs" className="text-sm text-link hover:underline">← Test runs</Link>
           <h1 className="font-mono text-lg font-semibold">{r.id}</h1>
-          <p className="text-sm text-muted">{prog.excel} · strictness {prog.strictness}{prog.excel_sha256 ? ` · SHA-256 ${prog.excel_sha256.slice(0, 12)}…` : ''}</p>
+          <p className="text-sm text-muted">{prog.excel} · strictness {prog.strictness}{prog.excel_sha256 ? ` · SHA-256 ${prog.excel_sha256.slice(0, 12)}…` : ''}
+            {r.cost.calls > 0 && <> · <span className="font-medium text-ink tnum" title="What the agents of this run cost so far">{r.cost.estimated ? 'up to ' : ''}{usd(r.cost.total)} in AI</span></>}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!r.running && <Button kind="primary" busy={busy === 'start'} disabled={!!busy} onClick={() => act('start', () => api.post(`/api/runs/${runId}/start`))}>

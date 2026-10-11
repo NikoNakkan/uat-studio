@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import accounts, kit
+from .. import accounts, costs, kit
 from ..engine import engine
 from ..events import bus
 from ..interactions import interactions
@@ -56,6 +56,7 @@ def _summary(rid: str) -> dict:
     running, waiting, sealed = engine.is_running(rid), len(interactions.list(rid)), (p / "manifest.json").exists()
     return {"id": rid, "excel": prog.get("excel"), "created": prog.get("created"), "strictness": prog.get("strictness"),
             "cases": len(kit.read_json(p / "cases.json", []) or []),
+            "cost": costs.summarise(kit.read_json(p / "usage.json", []) or [])["total"],
             "stages_done": sum(v.get("status") in ("done", "skipped") for v in stages.values()), "stages_total": total,
             "current": current, "current_status": stages.get(current, {}).get("status") if current else None,
             "tests": len(tests), "passed": results.count("passed"),
@@ -113,7 +114,8 @@ def get_run(run_id: str):
     folders = sorted(x.name for x in p.iterdir() if x.is_dir())
     return {"id": run_id, "data": data, "texts": texts, "folders": folders,
             "stages": _stage_rows(data["progress"] or {}), "running": engine.is_running(run_id),
-            "pending": interactions.list(run_id), "results_ready": (p / "results.xlsx").exists()}
+            "pending": interactions.list(run_id), "results_ready": (p / "results.xlsx").exists(),
+            "cost": costs.summarise(data["usage"] or [])}
 
 
 @router.post("/runs/{run_id}/start")

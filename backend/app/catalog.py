@@ -13,7 +13,8 @@ OPUS, SONNET, HAIKU, FABLE = "claude-opus-5-5", "claude-sonnet-5-5", "claude-hai
 @dataclass(frozen=True)
 class ModelInfo:
     name: str
-    price: str      # US dollars per million input / output tokens
+    input_price: float      # US dollars per million input tokens
+    output_price: float     # US dollars per million output tokens
     use: str
 
 
@@ -25,10 +26,10 @@ class AgentInfo:
 
 
 MODELS = {
-    FABLE: ModelInfo("Claude Fable 5.1", "$10 / $50", "The most capable model; slower, 2.5 times the price of Opus."),
-    OPUS: ModelInfo("Claude Opus 5.5", "$4 / $20", "Hard judgment calls where a mistake costs a person's time."),
-    SONNET: ModelInfo("Claude Sonnet 5.5", "$2 / $10", "Everyday agent work: long walks through the live app."),
-    HAIKU: ModelInfo("Claude Haiku 5.5", "$0.10 / $0.50", "Short, simple jobs: explaining text, one-line summaries."),
+    FABLE: ModelInfo("Claude Fable 5.1", 10, 50, "The most capable model; slower, 2.5 times the price of Opus."),
+    OPUS: ModelInfo("Claude Opus 5.5", 4, 20, "Hard judgment calls where a mistake costs a person's time."),
+    SONNET: ModelInfo("Claude Sonnet 5.5", 2, 10, "Everyday agent work: long walks through the live app."),
+    HAIKU: ModelInfo("Claude Haiku 5.5", 0.10, 0.50, "Short, simple jobs: explaining text, one-line summaries."),
 }
 
 # Every agent of the flow, as the kit names them.
@@ -70,5 +71,6 @@ def public_catalog() -> dict:
     """The agents and model choices as the browser sees them."""
     return {
         "agents": {a: asdict(info) for a, info in AGENTS.items()},
-        "model_choices": [{"id": m, **asdict(info)} for m, info in MODELS.items()],
+        "model_choices": [{"id": m, **asdict(info), "price": f"${info.input_price:g} / ${info.output_price:g}"}
+                          for m, info in MODELS.items()],
     }

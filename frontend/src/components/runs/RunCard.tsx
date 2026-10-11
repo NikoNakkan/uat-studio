@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import type { RunSummary } from '../../api';
+import { usd } from '../../lib/money';
 import { STAGES } from '../run/stages';
 import { RunActions } from '../RunActions';
 import { stateOf, when } from './runState';
@@ -28,6 +29,7 @@ export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolea
             <span className="font-medium text-ink">{r.excel ?? 'Excel not recorded'}</span>
             {r.cases > 0 && <span>· {r.cases} cases</span>}
             {r.strictness && <span>· {r.strictness} questions</span>}
+            {r.cost > 0 && <span title="What the agents of this run cost">· <b className="font-medium text-ink tnum">{usd(r.cost)}</b> in AI</span>}
           </div>
         </div>
         <Results passed={r.passed} failed={r.failed} notRun={notRun} />

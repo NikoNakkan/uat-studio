@@ -8,6 +8,7 @@ from pathlib import Path
 from . import kit
 from .events import bus
 from .llm import AgentOutcome
+from .processes import SCRIPTS
 
 
 class StopRun(Exception):
@@ -64,9 +65,20 @@ class StageRunner:
 
     async def usage(self, c: Ctx, agent: str, o: AgentOutcome) -> None:
         if kit.is_on("skill-tracking-usage") and (o.input_tokens or o.output_tokens):
+            cache = (["--cache-read-tokens", str(o.cache_read_tokens), "--cache-write-tokens", str(o.cache_write_tokens)]
+                     if _splits_cache() else [])
             await kit.run_script("usage_report", "--run", c.rel, "--stage", c.stage, "--agent", agent, "--model", o.model,
-                                 "--input-tokens", str(o.input_tokens), "--output-tokens", str(o.output_tokens))
+                                 "--input-tokens", str(o.input_tokens), "--output-tokens", str(o.output_tokens), *cache)
 
     def check_outcome(self, o: AgentOutcome, what: str) -> None:
         if o.stopped == "error":
             raise StopRun(f"{what}: {o.text}")
+
+
+def _splits_cache() -> bool:
+    """A project made from an older kit has a usage script without the cache options; it still records the rest."""
+    script = kit.kit_dir() / SCRIPTS["usage_report"]
+    try:
+        return "--cache-read-tokens" in script.read_text(encoding="utf-8")
+    except OSError:
+        return False

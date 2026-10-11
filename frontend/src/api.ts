@@ -40,9 +40,16 @@ export type StageRow = { id: string; feature: string; on: boolean; agent?: strin
 export type RunState = 'running' | 'waiting' | 'signed_off' | 'stopped' | 'finished' | 'not_started';
 export type RunSummary = { id: string; excel: string | null; created: string | null; strictness: string | null; cases: number;
   stages_done: number; stages_total: number; current: string | null; current_status: string | null;
-  tests: number; passed: number; failed: number; sealed: boolean; results: boolean; running: boolean; waiting: number; state: RunState };
+  tests: number; passed: number; failed: number; sealed: boolean; results: boolean; running: boolean; waiting: number; state: RunState;
+  cost: number };
 export type RunDetail = { id: string; data: RunData; texts: Record<string, string>; folders: string[];
-  stages: StageRow[]; running: boolean; pending: Interaction[]; results_ready: boolean };
+  stages: StageRow[]; running: boolean; pending: Interaction[]; results_ready: boolean; cost: RunCost };
+/** One line of a cost breakdown: a stage, agent or model, what it cost in US dollars and how many agent calls. */
+export type CostItem = { key: string; cost: number; calls: number; input: number; output: number };
+/** What a run cost. estimated: some usage was recorded before cached tokens were counted apart, so it is the most it cost. */
+export type RunCost = { total: number; calls: number; estimated: boolean; unpriced: string[];
+  tokens: { input: number; output: number; cache_read: number; cache_write: number };
+  by_stage: CostItem[]; by_agent: CostItem[]; by_model: CostItem[] };
 export type Event = { seq: number; ts: number; type: string; stage?: string; agent?: string; tool?: string; script?: string;
   text?: string; input?: string; code?: number; status?: string; note?: string; reason?: string; interaction?: Interaction;
   model?: string; input_tokens?: number; output_tokens?: number; is_error?: boolean; images?: number; turns?: number };
