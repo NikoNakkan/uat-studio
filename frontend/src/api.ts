@@ -35,3 +35,12 @@ export type Event = { seq: number; ts: number; type: string; stage?: string; age
 
 export const runFile = (runId: string, path: string) => `/api/runs/${runId}/file?path=${encodeURIComponent(path)}`;
 export const kitFile = (path: string) => `/api/kit/file?path=${encodeURIComponent(path)}`;
+
+export type Settings = { api_key_set: boolean; api_key_hint: string; api_key_from_env?: boolean; models: Record<string, string>;
+  agents: Record<string, string>; default_model: string; model_choices: string[]; max_turns: number; max_output_tokens: number;
+  show_agent_browser: boolean; kit_dir: string };
+export type SetupRow = { status: string; item: string; fix: string };
+export type SetupCheck = { ok: boolean; rows: SetupRow[]; output: string };
+export type Account = { name: string; label: string; user: string; user_set: boolean; password_set: boolean; used_by: string[] };
+export type EnvInfo = { env_exists: boolean; start_page: string; accounts: Account[]; allowed_origins: string[] };
+export type Health = { ok: boolean; kit: string; kit_found: boolean; running: string[]; project: string };

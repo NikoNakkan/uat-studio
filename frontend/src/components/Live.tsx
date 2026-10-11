@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { Event } from '../api';
-import { useEvents, type LiveStatus } from '../ui';
+import { useEvents, type LiveStatus } from '../lib/useEvents';
 import { Activity } from './Activity';
 
 const Ctx = createContext<{ events: Event[]; live: LiveStatus; scope: 'app' | 'run' }>({ events: [], live: 'connecting', scope: 'app' });
