@@ -32,8 +32,8 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
     } catch (e) { setError(errorText(e)); }
     finally { lock.current = false; setBusyKey(null); }
   };
-  const units = Object.entries(check.units ?? {}) as [string, any][];
-  const manual = Object.entries(check.tests ?? {}).filter(([, t]: any) => t.recommendation === 'MANUAL') as [string, any][];
+  const units = Object.entries(check.units ?? {});
+  const manual = Object.entries(check.tests ?? {}).filter(([, t]) => t.recommendation === 'MANUAL');
   const decidedUnits = units.filter(([unit]) => signoff.decisions?.[unit]).length;
   const recordedManual = manual.filter(([id]) => signoff.manual?.[id]).length;
   const readyToClose = decidedUnits === units.length && recordedManual === manual.length;

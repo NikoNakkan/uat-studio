@@ -1,6 +1,6 @@
 import { Link, NavLink, Route, Routes, useMatch } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
-import { api, type Interaction } from './api';
+import { useHealth, useInteractions, useSettings } from './lib/queries';
+
 import { LiveProvider, LiveRail } from './components/Live';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { RunsPage } from './pages/Runs';
@@ -40,9 +40,9 @@ function NavIcon({ name }: { name: string }) {
 }
 
 export function App() {
-  const health = useQuery({ queryKey: ['health'], queryFn: () => api.get<any>('/api/health'), refetchInterval: 5000 });
-  const settings = useQuery({ queryKey: ['settings'], queryFn: () => api.get<any>('/api/settings') });
-  const open = useQuery({ queryKey: ['interactions'], queryFn: () => api.get<Interaction[]>('/api/interactions'), refetchInterval: 3000 });
+  const health = useHealth();
+  const settings = useSettings();
+  const open = useInteractions();
   const run = useMatch('/runs/:runId');
   const runId = run?.params.runId ?? '';
   return (

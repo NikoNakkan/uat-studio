@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { useLoginWritten, useRuns, useSettings } from '../lib/queries';
 import { api, type RunSummary } from '../api';
 import { ExcelPicker, useLatestExcel } from '../components/ExcelPicker';
 import { RunActions } from '../components/RunActions';
@@ -15,16 +16,16 @@ const STRICTNESS = {
 
 export function RunsPage() {
   useTitle('Test runs');
-  const runs = useQuery({ queryKey: ['runs'], queryFn: () => api.get<RunSummary[]>('/api/runs'), refetchInterval: 4000 });
-  const settings = useQuery({ queryKey: ['settings'], queryFn: () => api.get<any>('/api/settings') });
-  const loginTs = useQuery({ queryKey: ['kittext', 'tests/login.ts'], queryFn: () => api.get<{ text: string }>('/api/kit/text?path=tests%2Flogin.ts') });
-  const ready = !!settings.data?.api_key_set && !!loginTs.data && !loginTs.data.text.includes('write login() for your app');
+  const runs = useRuns();
+  const settings = useSettings();
+  const login = useLoginWritten();
+  const ready = !!settings.data?.api_key_set && login.written;
   const list = runs.data ?? [];
   const latest = list[0];
 
   const steps: StepDef[] = [
     {
-      id: 'setup', title: 'Set up', state: settings.isPending || loginTs.isPending ? 'todo' : ready ? 'done' : 'current',
+      id: 'setup', title: 'Set up', state: settings.isPending || login.pending ? 'todo' : ready ? 'done' : 'current',
       summary: ready ? 'API key, machine, accounts and login are ready.' : 'Once per machine and app: API key, test accounts and login.',
       body: <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         <p className="text-muted">{ready ? 'Everything is set up. Open it again to change accounts or login.' : 'A few steps, each opens when it is its turn.'}</p>

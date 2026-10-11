@@ -24,7 +24,16 @@ export const api = {
   del: <T,>(url: string) => call<T>('DELETE', url),
 };
 
-export type Interaction = { id: string; channel: string; kind: string; title: string; payload: any; created: number };
+export type Question = { id: string; test_id?: string; text: string; recommended?: string };
+/** What an open question, confirmation or approval carries; which fields are set depends on its kind. */
+export type InteractionPayload = {
+  agent?: string; questions?: Question[]; can_defer?: boolean;                     // question
+  options?: string[]; suggestion?: string; explanation?: string; status?: string;  // change, proceed, setup
+  details?: { fields_changed?: string[]; similar_to?: string };
+  reason?: string; tool?: string; input?: unknown;                                 // guard
+  summary?: string; output?: string; text?: string;                                // repair, setup
+};
+export type Interaction = { id: string; channel: string; kind: string; title: string; payload: InteractionPayload; created: number };
 export type StageRow = { id: string; feature: string; on: boolean; agent?: string; does: string; stop_for_person?: string;
   status: string; note: string; at?: string };
 export type RunSummary = { id: string; excel: string; created: string; strictness: string; stages_done: number; stages_total: number;

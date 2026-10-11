@@ -23,7 +23,7 @@ export function TestEvidence({ runId, r, testId }: { runId: string; r: RunDetail
   const t: Partial<ProgressTest> = d.progress?.tests?.[testId] ?? {};
   const check: Partial<CheckedTest> = d.evidence_check?.tests?.[testId] ?? {};
   const diag = d.diagnoses?.[testId];
-  const kase = (d.cases ?? []).find((c: any) => c.test_id === testId);
+  const kase = d.cases?.find(c => c.test_id === testId);
   const folder = t.evidence ?? 'evidence';
   const files = useEvidenceFiles(runId, folder);
   const [msg, setMsg] = useState('');
@@ -36,7 +36,7 @@ export function TestEvidence({ runId, r, testId }: { runId: string; r: RunDetail
   const trace = own.find(f => f.endsWith('trace.zip'));
   const video = own.find(f => f.endsWith('.webm'));
   const steps: { n: number; text: string }[] = kase?.steps ?? [];
-  const expectedOf = (n: number) => (kase?.expected_results ?? []).filter((e: any) => Number(e.step) === n).map((e: any) => e.text);
+  const expectedOf = (n: number) => (kase?.expected_results ?? []).filter(e => Number(e.step) === n).map(e => e.text);
   const missing = steps.filter(s => !shots.some(x => x.step === s.n));
 
   return (

@@ -17,14 +17,20 @@ const MILESTONES = new Set(['stage', 'run', 'waiting', 'answered', 'script_end',
 export function useEvents(channelUrl: string | null, refresh: unknown[][] = []) {
   const [events, setEvents] = useState<Event[]>([]);
   const [live, setLive] = useState<LiveStatus>('connecting');
+  // A new channel starts empty: reset during render (React's pattern for state that follows an input), not in
+  // the effect, so the old channel's events are never shown under the new one.
+  const [channel, setChannel] = useState(channelUrl);
+  if (channel !== channelUrl) {
+    setChannel(channelUrl);
+    setEvents([]);
+    setLive('connecting');
+  }
   const qc = useQueryClient();
   const refreshRef = useRef(refresh);
   useEffect(() => { refreshRef.current = refresh; });
 
   useEffect(() => {
     if (!channelUrl) return;
-    setEvents([]);
-    setLive('connecting');
     let lastSeq = 0;
     let dead = false;
     let es: EventSource | null = null;

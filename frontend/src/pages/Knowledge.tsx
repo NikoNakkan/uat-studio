@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { AppMapView } from '../components/AppMapView';
+import { AppMapView, type MapPage } from '../components/AppMapView';
+
+type AgentInfo = { name: string; description: string; tools: string[]; body: string };
+type SkillInfo = { name: string; description: string; on: boolean; files: string[]; text: string };
 import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, fail, inputCls, ok, useTitle, type Msg } from '../ui';
 
 const TAB_LABEL: Record<string, string> = {
@@ -56,7 +59,7 @@ function Glossary() {
 }
 
 function AppMap() {
-  const q = useQuery({ queryKey: ['appmap'], queryFn: () => api.get<{ text: string; data: any }>('/api/kit/app-map') });
+  const q = useQuery({ queryKey: ['appmap'], queryFn: () => api.get<{ text: string; data: { pages?: Record<string, MapPage> } | null }>('/api/kit/app-map') });
   const [view, setView] = useState<'map' | 'tables'>('map');
   if (q.isPending) return <Loading label="Loading the app map…" />;
   if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
@@ -71,10 +74,10 @@ function AppMap() {
             {v === 'map' ? 'Map' : 'Tables'}</button>
         ))}
       </div>
-      {view === 'map' ? <AppMapView pages={pages} /> : Object.entries(pages).map(([key, p]: any) => (
+      {view === 'map' ? <AppMapView pages={pages} /> : Object.entries(pages).map(([key, p]) => (
         <Card key={key} title={`${key} · ${p.address ?? ''}`}>
           {p.reached_by && <p className="mb-2 text-sm text-muted">Reached by: {p.reached_by}</p>}
-          <Table head={['Role', 'Name', 'Example text', 'Test ID']} rows={(p.elements ?? []).map((e: any) => [e.role, e.name || '—', e.example_text ?? '', e.test_id ?? ''])} />
+          <Table head={['Role', 'Name', 'Example text', 'Test ID']} rows={(p.elements ?? []).map(e => [e.role, e.name || '—', e.example_text ?? '', e.test_id ?? ''])} />
         </Card>
       ))}
     </div>
@@ -90,7 +93,7 @@ function Config() {
   const [saving, setSaving] = useState(false);
   const lock = useRef(false);
   const qc = useQueryClient();
-  useEffect(() => { setText(null); setMsg(null); }, [name]);
+  const choose = (n: string) => { setName(n); setText(null); setMsg(null); };   // a new file starts with no draft
   const save = async () => {
     if (lock.current || text === null) return;
     lock.current = true;
@@ -108,7 +111,7 @@ function Config() {
       <Card title="Files">
         <QueryGate pending={list.isPending} error={list.isError ? list.error : null} label="Loading rule files…">
           <ul className="grid gap-1 text-sm">{(list.data ?? []).map(f => (
-            <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-accent hover:underline'}`} onClick={() => setName(f.name)}>{f.name}</button></li>
+            <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-accent hover:underline'}`} onClick={() => choose(f.name)}>{f.name}</button></li>
           ))}</ul>
         </QueryGate>
         <p className="mt-3 text-xs text-muted">Feature switches are changed on their own page.</p>
@@ -150,7 +153,7 @@ function TestFiles() {
 }
 
 function Agents() {
-  const q = useQuery({ queryKey: ['agents'], queryFn: () => api.get<any[]>('/api/kit/agents') });
+  const q = useQuery({ queryKey: ['agents'], queryFn: () => api.get<AgentInfo[]>('/api/kit/agents') });
   if (q.isPending) return <Loading label="Loading agents…" />;
   if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
   if (!q.data.length) return <Empty>No agents found.</Empty>;
@@ -164,7 +167,7 @@ function Agents() {
 }
 
 function Skills() {
-  const q = useQuery({ queryKey: ['skills'], queryFn: () => api.get<any[]>('/api/kit/skills') });
+  const q = useQuery({ queryKey: ['skills'], queryFn: () => api.get<SkillInfo[]>('/api/kit/skills') });
   if (q.isPending) return <Loading label="Loading skills…" />;
   if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
   if (!q.data.length) return <Empty>No skills found.</Empty>;

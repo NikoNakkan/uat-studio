@@ -6,7 +6,8 @@ import { Button, Card, Empty, Loading, Notice, Pill, Spinner, errorText, inputCl
 type Item = { id: string; name: string; kind: string; area: string; status: string; core: boolean; core_reason?: string; what: string;
   requires: string[]; soft: { id: string; loss: string }[]; required_by: string[]; soft_by: { id: string; loss: string }[];
   needs_all: string[]; blocked_by: string[]; on: boolean; switched_off: boolean; files?: string[]; decisions?: number[] };
-type Preview = { allowed: boolean; reason?: string; also?: string[]; losses?: { who: string; dep: string; loss: string }[] };
+type Loss = { who: string; dep: string; loss: string };
+type Preview = { allowed: boolean; reason?: string; also?: string[]; losses?: Loss[] };
 
 const KIND: Record<string, string> = { stage: 'Stage', agent: 'Agent', skill: 'Skill', rule: 'Rule', part: 'Part', prompt: 'Command', future: 'Future', idea: 'Set aside' };
 
@@ -14,7 +15,7 @@ const KIND: Record<string, string> = { stage: 'Stage', agent: 'Agent', skill: 'S
 export function SwitchesPage() {
   useTitle('Feature switches');
   const qc = useQueryClient();
-  const data = useQuery({ queryKey: ['features'], queryFn: () => api.get<{ items: Item[]; losses: any[]; problems: string[] }>('/api/features') });
+  const data = useQuery({ queryKey: ['features'], queryFn: () => api.get<{ items: Item[]; losses: Loss[]; problems: string[] }>('/api/features') });
   const [q, setQ] = useState('');
   const [showPlanned, setShowPlanned] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export function SwitchesPage() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const lock = useRef(false);
-  const items = data.data?.items ?? [];
+  const items = useMemo(() => data.data?.items ?? [], [data.data]);
   const byId = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
   const groups = useMemo(() => {
     const g: Record<string, Item[]> = {};
@@ -134,18 +135,29 @@ export function SwitchesPage() {
   );
 }
 
-function Inspector({ item, byId, onSelect }: { item: Item; byId: Record<string, Item>; onSelect: (id: string) => void }) {
-  const Ref = ({ id }: { id: string }) => <button className="text-accent hover:underline" onClick={() => onSelect(id)}>{byId[id]?.name ?? id}</button>;
-  const Tree = ({ id, depth, seen }: { id: string; depth: number; seen: Set<string> }) => (
+type Pick = { byId: Record<string, Item>; onSelect: (id: string) => void };
+
+/** A part's name that selects it. */
+function PartLink({ id, byId, onSelect }: Pick & { id: string }) {
+  return <button className="text-accent hover:underline" onClick={() => onSelect(id)}>{byId[id]?.name ?? id}</button>;
+}
+
+/** What a part needs, and what those need in turn (each part once per branch). */
+function NeedsTree({ id, depth, seen, byId, onSelect }: Pick & { id: string; depth: number; seen: Set<string> }) {
+  return (
     <ul className={depth ? 'ml-4 border-l border-line pl-3' : ''}>
       {(byId[id]?.requires ?? []).map(r => (
         <li key={r} className="py-0.5 text-sm">
-          <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${byId[r]?.on ? 'bg-good' : 'bg-bad'}`} /><Ref id={r} />
-          {!seen.has(r) && <Tree id={r} depth={depth + 1} seen={new Set([...seen, r])} />}
+          <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${byId[r]?.on ? 'bg-good' : 'bg-bad'}`} /><PartLink id={r} byId={byId} onSelect={onSelect} />
+          {!seen.has(r) && <NeedsTree id={r} depth={depth + 1} seen={new Set([...seen, r])} byId={byId} onSelect={onSelect} />}
         </li>
       ))}
     </ul>
   );
+}
+
+function Inspector({ item, byId, onSelect }: { item: Item } & Pick) {
+  const link = { byId, onSelect };
   return (
     <Card title={item.name}>
       <div className="grid gap-3 text-sm">
@@ -153,13 +165,13 @@ function Inspector({ item, byId, onSelect }: { item: Item; byId: Record<string, 
           <Pill value={item.on ? 'on' : 'off'} />{item.core && <Pill value="core" />}<span className="text-xs text-muted">{KIND[item.kind]} · {item.area}</span></div>
         <p>{item.what}</p>
         {item.core && item.core_reason && <p className="text-muted">Locked on: {item.core_reason}</p>}
-        {item.requires.length > 0 && <div><h3 className="font-medium">Needs</h3><Tree id={item.id} depth={0} seen={new Set([item.id])} /></div>}
+        {item.requires.length > 0 && <div><h3 className="font-medium">Needs</h3><NeedsTree id={item.id} depth={0} seen={new Set([item.id])} {...link} /></div>}
         {item.soft.length > 0 && <div><h3 className="font-medium">Works less well without</h3>
-          <ul className="grid gap-1">{item.soft.map(s => <li key={s.id}><Ref id={s.id} />: {s.loss}</li>)}</ul></div>}
+          <ul className="grid gap-1">{item.soft.map(s => <li key={s.id}><PartLink id={s.id} {...link} />: {s.loss}</li>)}</ul></div>}
         {item.required_by.length > 0 && <div><h3 className="font-medium">Needed by</h3>
-          <p className="flex flex-wrap gap-x-3">{item.required_by.map(r => <Ref key={r} id={r} />)}</p></div>}
+          <p className="flex flex-wrap gap-x-3">{item.required_by.map(r => <PartLink key={r} id={r} {...link} />)}</p></div>}
         {item.soft_by.length > 0 && <div><h3 className="font-medium">Makes these work better</h3>
-          <ul className="grid gap-1">{item.soft_by.map(s => <li key={s.id}><Ref id={s.id} />: without it, {s.loss.charAt(0).toLowerCase() + s.loss.slice(1)}</li>)}</ul></div>}
+          <ul className="grid gap-1">{item.soft_by.map(s => <li key={s.id}><PartLink id={s.id} {...link} />: without it, {s.loss.charAt(0).toLowerCase() + s.loss.slice(1)}</li>)}</ul></div>}
         {item.files?.length ? <div><h3 className="font-medium">Files</h3><ul className="font-mono text-xs">{item.files.map(f => <li key={f}>{f}</li>)}</ul></div> : null}
         {item.decisions?.length ? <p className="text-xs text-muted">Decisions {item.decisions.join(', ')}</p> : null}
       </div>

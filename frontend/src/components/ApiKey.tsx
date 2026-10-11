@@ -1,23 +1,21 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '../api';
-import { Button, MsgNotice, fail, inputCls, ok, type Msg } from '../ui';
+import { api, type Settings } from '../api';
+import { useAction } from '../lib/useAction';
+import { Button, MsgNotice, inputCls, ok, type Msg } from '../ui';
 
 /**
  * The Anthropic API key. Once saved it is shown as saved (its last characters only), with Test, Replace and
  * Remove; the empty input only appears when there is no key or the person chooses to replace it.
  */
-export function ApiKeyBox({ settings }: { settings: any }) {
+export function ApiKeyBox({ settings }: { settings: Settings | undefined }) {
   const qc = useQueryClient();
   const [replacing, setReplacing] = useState(false);
   const [key, setKey] = useState('');
   const [msg, setMsg] = useState<Msg>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const { busy, error, run } = useAction();
   const isSet = !!settings?.api_key_set;
-  const act = async (what: string, fn: () => Promise<void>) => {
-    setBusy(what); setMsg(null);
-    try { await fn(); } catch (e) { setMsg(fail(e)); } finally { setBusy(null); }
-  };
+  const act = (what: string, fn: () => Promise<void>) => { setMsg(null); return run(what, fn); };
   const save = () => act('save', async () => {
     await api.put('/api/settings', { api_key: key.trim() });
     setKey(''); setReplacing(false); setMsg(ok('Key saved.'));
@@ -53,7 +51,7 @@ export function ApiKeyBox({ settings }: { settings: any }) {
           {replacing && <Button disabled={!!busy} onClick={() => { setReplacing(false); setKey(''); }}>Cancel</Button>}
         </form>
       )}
-      <MsgNotice msg={msg} className="" />
+      <MsgNotice msg={error ? { text: error, ok: false } : msg} className="" />
       <p className="text-xs text-muted">From console.anthropic.com → API Keys. Stored in ~/.uat-studio/settings.json on this machine, never in a
         repository, and never shown again: only its last characters.</p>
     </div>

@@ -18,20 +18,17 @@ export type StepDef = {
 export function Stepper({ steps, label }: { steps: StepDef[]; label: string }) {
   const focus = steps.find(s => s.state === 'waiting') ?? steps.find(s => s.state === 'failed')
     ?? steps.find(s => s.state === 'current') ?? steps.find(s => s.state === 'todo') ?? steps[steps.length - 1];
-  const [open, setOpen] = useState<string | undefined>(focus?.id);
-  const [pinned, setPinned] = useState(false);                // the person picked a step: stop following the flow
-  const lastFocus = useRef(focus?.id);
-  useEffect(() => {
-    if (focus?.id === lastFocus.current) return;
-    lastFocus.current = focus?.id;
-    // A step that needs the person always opens; otherwise only follow the flow until the person picks a step.
-    if (focus && (focus.state === 'waiting' || !pinned)) { setOpen(focus.id); setPinned(false); }
-  }, [focus, pinned]);
+  // The person's own pick, remembered with the step the flow was at when they picked. Their pick holds while the
+  // flow moves on, until another step needs them: then the pick is dropped (during render, React's pattern for
+  // resetting state when an input changes) and the stepper follows the flow again.
+  const [pick, setPick] = useState<{ id: string | undefined; focusAtPick: string | undefined } | null>(null);
+  if (pick && focus?.state === 'waiting' && focus.id !== pick.focusAtPick) setPick(null);
+  const open = pick ? pick.id : focus?.id;
   return (
     <ol aria-label={label} className="grid">
       {steps.map((s, n) => (
         <StepRow key={s.id} step={s} n={n + 1} last={n === steps.length - 1} open={open === s.id}
-          onToggle={() => { setPinned(true); setOpen(open === s.id ? undefined : s.id); }} />
+          onToggle={() => setPick({ id: open === s.id ? undefined : s.id, focusAtPick: focus?.id })} />
       ))}
     </ol>
   );
