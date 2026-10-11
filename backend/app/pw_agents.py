@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 from . import accounts, kit
-from .agents import APP_NOTE, STR, ask_person_tool, obj, read_tools, script_output
+from .agent_tools import APP_NOTE, STR, ask_person_tool, obj, read_tools, script_output
 from .llm import Tool, ToolResult, run_agent
 from .mcp_bridge import load_agent_file, load_skill, playwright_server, playwright_tools
 
