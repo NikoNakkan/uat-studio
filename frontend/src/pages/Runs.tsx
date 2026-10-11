@@ -1,12 +1,13 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useLoginWritten, useRuns, useSettings } from '../lib/queries';
 import { api, type RunSummary } from '../api';
+import { useAction } from '../lib/useAction';
 import { ExcelPicker, useLatestExcel } from '../components/ExcelPicker';
 import { RunActions } from '../components/RunActions';
 import { Stepper, type StepDef } from '../components/Stepper';
-import { Button, Empty, Field, Notice, Pill, QueryGate, Table, errorText, inputCls, useTitle } from '../ui';
+import { Button, Empty, Field, Notice, Pill, QueryGate, Table, inputCls, useTitle } from '../ui';
 
 const STRICTNESS = {
   basic: 'Only what makes a test impossible to run',
@@ -64,23 +65,18 @@ function NewRun() {
   const latest = useLatestExcel();
   const canReuse = !!latest.data?.reusable;
   const [strictness, setStrictness] = useState<keyof typeof STRICTNESS>('standard');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const lock = useRef(false);
-  const start = async () => {
-    if ((!file && !canReuse) || lock.current) return;
-    lock.current = true;
-    setBusy(true); setError('');
-    try {
-      const form = new FormData();
-      if (file) form.append('file', file); else form.append('reuse', 'latest');
-      form.append('strictness', strictness);
-      form.append('start', 'true');
-      const r = await api.post<{ id: string; started: boolean; message?: string }>('/api/runs', form);
-      if (!r.started && r.message) setError(r.message);
-      navigate(`/runs/${r.id}`);
-    } catch (e) { setError(errorText(e)); } finally { lock.current = false; setBusy(false); }
-  };
+  const { busy: action, error, setError, run } = useAction();
+  const busy = !!action;
+  const start = () => run('start', async () => {
+    if (!file && !canReuse) return;
+    const form = new FormData();
+    if (file) form.append('file', file); else form.append('reuse', 'latest');
+    form.append('strictness', strictness);
+    form.append('start', 'true');
+    const r = await api.post<{ id: string; started: boolean; message?: string }>('/api/runs', form);
+    if (!r.started && r.message) setError(r.message);
+    navigate(`/runs/${r.id}`);
+  });
   return (
     <div className="grid gap-4">
       <form className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] md:items-end" onSubmit={e => { e.preventDefault(); start(); }}>

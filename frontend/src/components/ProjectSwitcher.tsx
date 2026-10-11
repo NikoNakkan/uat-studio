@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
-import { Button, Field, errorText, inputCls } from '../ui';
+import { useAction } from '../lib/useAction';
+import { Button, Field, inputCls } from '../ui';
 
 type Project = { id: string; name: string; dir: string; current: boolean; runs: number; running: string[]; created: string };
 
@@ -24,8 +25,8 @@ export function ProjectSwitcher() {
   const [mode, setMode] = useState<'list' | 'new' | 'rename'>('list');
   const [name, setName] = useState('');
   const [start, setStart] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const { busy, error, run } = useAction();
   const box = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -59,10 +60,7 @@ export function ProjectSwitcher() {
     return () => { window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
   }, [open]);
 
-  const act = async (what: string, fn: () => Promise<void>) => {
-    setBusy(what); setMsg('');
-    try { await fn(); } catch (e) { setMsg(errorText(e)); } finally { setBusy(null); }
-  };
+  const act = (what: string, fn: () => Promise<void>) => { setMsg(''); return run(what, fn); };
 
   return (
     <div ref={box} className="relative px-2 pb-2">
@@ -136,7 +134,7 @@ export function ProjectSwitcher() {
               </div>
             </form>
           )}
-          {msg && <p role="status" className="px-1 text-xs text-muted">{msg}</p>}
+          {(error || msg) && <p role="status" className={`px-1 text-xs ${error ? 'text-bad' : 'text-muted'}`}>{error || msg}</p>}
         </div>,
         document.body,
       )}

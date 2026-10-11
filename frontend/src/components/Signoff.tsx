@@ -1,8 +1,10 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type RunDetail } from '../api';
+import { readStored, writeStored } from '../lib/storage';
+import { useAction } from '../lib/useAction';
 import { TestEvidence, isProblem } from './Evidence';
-import { Button, Card, Empty, Field, Pill, Table, errorText, inputCls } from '../ui';
+import { Button, Card, Empty, Field, Pill, Table, inputCls } from '../ui';
 
 /** The AI recommends, a person decides (decisions 6 and 21). Every decision runs record_decision.py. */
 export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
@@ -12,26 +14,19 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
   const reasoning = r.data.studio_reasoning ?? {};
   const manifest = r.data.manifest;
   const sealed = !!manifest;
-  const [by, setBy] = useState(() => localStorageGet('uat-signoff-by'));
-  const [error, setError] = useState('');
+  const [by, setBy] = useState(() => readStored('uat-signoff-by') ?? '');
   const [info, setInfo] = useState('');
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const { busy: busyKey, error, run } = useAction();
   const [open, setOpen] = useState<{ unit: string; test: string } | null>(null);   // the test whose evidence is shown
   const results = r.data.progress?.tests ?? {};
-  const lock = useRef(false);
   if (!check) return <Empty>The evidence is checked when the run reaches sign-off.</Empty>;
 
-  const post = async (key: string, url: string, body: unknown) => {
-    if (lock.current) return;
-    lock.current = true;
-    setBusyKey(key); setError(''); setInfo('');
-    try {
-      const res = await api.post<{ output: string }>(url, body);
-      setInfo(res.output);
-      qc.invalidateQueries({ queryKey: ['run', runId] });
-    } catch (e) { setError(errorText(e)); }
-    finally { lock.current = false; setBusyKey(null); }
-  };
+  const post = (key: string, url: string, body: unknown) => run(key, async () => {
+    setInfo('');
+    const res = await api.post<{ output: string }>(url, body);
+    setInfo(res.output);
+    qc.invalidateQueries({ queryKey: ['run', runId] });
+  });
   const units = Object.entries(check.units ?? {});
   const manual = Object.entries(check.tests ?? {}).filter(([, t]) => t.recommendation === 'MANUAL');
   const decidedUnits = units.filter(([unit]) => signoff.decisions?.[unit]).length;
@@ -43,7 +38,7 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
       <Card title={sealed ? `Signed off and sealed on ${manifest?.sealed_at}` : `Sign-off per ${check.sign_off_unit}`}
         actions={!sealed && <Field label="Decided by" hint={by.trim() ? undefined : 'Enter your name to record decisions.'}>
           <input className={`${inputCls} ${by.trim() ? '' : 'border-warn ring-1 ring-warn/40'}`} value={by} placeholder="Your name" aria-required
-            onChange={e => { setBy(e.target.value); localStorageSet('uat-signoff-by', e.target.value); }} /></Field>}>
+            onChange={e => { setBy(e.target.value); writeStored('uat-signoff-by', e.target.value); }} /></Field>}>
         <p className="mb-2 text-xs text-muted">✦ marks the AI's recommendation. You decide; every decision is recorded with your name.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -174,6 +169,3 @@ function ManualResult({ disabled, busy, onSave }: { disabled: boolean; busy?: bo
     </div>
   );
 }
-
-function localStorageGet(k: string) { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } }
-function localStorageSet(k: string, v: string) { try { localStorage.setItem(k, v); } catch { /* private window */ } }

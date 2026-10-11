@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { useAction } from '../lib/useAction';
 import { Button, Card, Empty, Loading, Notice, Pill, Spinner, errorText, inputCls, useTitle } from '../ui';
 
 type Item = { id: string; name: string; kind: string; area: string; status: string; core: boolean; core_reason?: string; what: string;
@@ -20,9 +21,7 @@ export function SwitchesPage() {
   const [showPlanned, setShowPlanned] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [pending, setPending] = useState<{ id: string; action: 'on' | 'off'; preview: Preview } | null>(null);
-  const [error, setError] = useState('');
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const lock = useRef(false);
+  const { busy: busyId, error, run } = useAction();
   const items = useMemo(() => data.data?.items ?? [], [data.data]);
   const byId = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])), [items]);
   const groups = useMemo(() => {
@@ -35,29 +34,20 @@ export function SwitchesPage() {
     return g;
   }, [items, q, showPlanned]);
 
-  const ask = async (id: string, action: 'on' | 'off') => {
-    if (lock.current) return;
-    lock.current = true;
-    setError('');
-    setBusyId(id);
-    try {
-      const preview = await api.post<Preview>('/api/features/switch', { id, action });
-      setSelected(id);
-      const immediate = preview.allowed && !preview.also?.length && !preview.losses?.length;
-      if (!immediate) { setPending({ id, action, preview }); return; }
-      await api.post('/api/features/switch', { id, action, apply: true });
-      qc.invalidateQueries({ queryKey: ['features'] });
-    } catch (e) { setError(errorText(e)); }
-    finally { lock.current = false; setBusyId(null); }
-  };
-  const apply = async (id: string, action: 'on' | 'off') => {
-    if (lock.current) return;
-    lock.current = true;
-    setBusyId(id);
-    try { await api.post('/api/features/switch', { id, action, apply: true }); setPending(null); qc.invalidateQueries({ queryKey: ['features'] }); }
-    catch (e) { setError(errorText(e)); }
-    finally { lock.current = false; setBusyId(null); }
-  };
+  // A switch that takes nothing else with it applies at once; otherwise the person sees what else changes first.
+  const ask = (id: string, action: 'on' | 'off') => run(id, async () => {
+    const preview = await api.post<Preview>('/api/features/switch', { id, action });
+    setSelected(id);
+    const immediate = preview.allowed && !preview.also?.length && !preview.losses?.length;
+    if (!immediate) { setPending({ id, action, preview }); return; }
+    await api.post('/api/features/switch', { id, action, apply: true });
+    qc.invalidateQueries({ queryKey: ['features'] });
+  });
+  const apply = (id: string, action: 'on' | 'off') => run(id, async () => {
+    await api.post('/api/features/switch', { id, action, apply: true });
+    setPending(null);
+    qc.invalidateQueries({ queryKey: ['features'] });
+  });
   const builtOn = items.filter(i => i.status === 'built' && i.on).length;
   const builtOff = items.filter(i => i.status === 'built' && !i.on).length;
   const sel = selected ? byId[selected] : null;

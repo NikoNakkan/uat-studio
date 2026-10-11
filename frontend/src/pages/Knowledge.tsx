@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { AppMapView, type MapPage } from '../components/AppMapView';
+import { TextFileEditor } from '../components/TextFileEditor';
+import { Card, Empty, Loading, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, useTitle } from '../ui';
 
 type AgentInfo = { name: string; description: string; tools: string[]; body: string };
 type SkillInfo = { name: string; description: string; on: boolean; files: string[]; text: string };
-import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, fail, inputCls, ok, useTitle, type Msg } from '../ui';
 
 const TAB_LABEL: Record<string, string> = {
   glossary: 'Glossary', appmap: 'App map', config: 'Rules', tests: 'Test files', agents: 'Agents', skills: 'Skills',
@@ -33,29 +34,8 @@ export function KnowledgePage() {
 }
 
 function Glossary() {
-  const q = useQuery({ queryKey: ['glossary'], queryFn: () => api.get<{ text: string }>('/api/kit/glossary') });
-  const [text, setText] = useState<string | null>(null);
-  const [msg, setMsg] = useState<Msg>(null);
-  const [saving, setSaving] = useState(false);
-  const lock = useRef(false);
-  const save = async () => {
-    if (lock.current || text === null) return;
-    lock.current = true;
-    setSaving(true); setMsg(null);
-    try { await api.put('/api/kit/glossary', { text }); setMsg(ok('Saved.')); setText(null); await q.refetch(); }
-    catch (e) { setMsg(fail(e)); }
-    finally { lock.current = false; setSaving(false); }
-  };
-  return (
-    <Card title="GLOSSARY.md" actions={<Button kind="primary" busy={saving} disabled={text === null || q.isPending} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>}>
-      <p className="mb-2 text-sm text-muted">The app's own words, one meaning each. The clarifier adds terms as the author explains them.</p>
-      <QueryGate pending={q.isPending} error={q.isError ? q.error : null} label="Loading the glossary…">
-        <textarea aria-label="Glossary" className={`${inputCls} font-mono`} rows={20} disabled={saving} value={text ?? q.data?.text ?? ''} onChange={e => setText(e.target.value)} />
-        {text !== null && <p className="mt-2 text-xs text-warn">Unsaved changes</p>}
-        <MsgNotice msg={msg} />
-      </QueryGate>
-    </Card>
-  );
+  return <TextFileEditor url="/api/kit/glossary" title="GLOSSARY.md"
+    intro="The app's own words, one meaning each. The clarifier adds terms as the author explains them." />;
 }
 
 function AppMap() {
@@ -87,42 +67,18 @@ function AppMap() {
 function Config() {
   const list = useQuery({ queryKey: ['config'], queryFn: () => api.get<{ name: string }[]>('/api/kit/config') });
   const [name, setName] = useState('guardrails.yaml');
-  const file = useQuery({ queryKey: ['config', name], queryFn: () => api.get<{ text: string }>(`/api/kit/config/${name}`) });
-  const [text, setText] = useState<string | null>(null);
-  const [msg, setMsg] = useState<Msg>(null);
-  const [saving, setSaving] = useState(false);
-  const lock = useRef(false);
-  const qc = useQueryClient();
-  const choose = (n: string) => { setName(n); setText(null); setMsg(null); };   // a new file starts with no draft
-  const save = async () => {
-    if (lock.current || text === null) return;
-    lock.current = true;
-    setSaving(true); setMsg(null);
-    try {
-      await api.put(`/api/kit/config/${name}`, { text });
-      setMsg(ok('Saved. Run the kit self-tests on the Settings page after changing rules.'));
-      setText(null);
-      qc.invalidateQueries({ queryKey: ['config', name] });
-    } catch (e) { setMsg(fail(e)); }
-    finally { lock.current = false; setSaving(false); }
-  };
   return (
     <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
       <Card title="Files">
         <QueryGate pending={list.isPending} error={list.isError ? list.error : null} label="Loading rule files…">
           <ul className="grid gap-1 text-sm">{(list.data ?? []).map(f => (
-            <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-accent hover:underline'}`} onClick={() => choose(f.name)}>{f.name}</button></li>
+            <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-accent hover:underline'}`} onClick={() => setName(f.name)}>{f.name}</button></li>
           ))}</ul>
         </QueryGate>
         <p className="mt-3 text-xs text-muted">Feature switches are changed on their own page.</p>
       </Card>
-      <Card title={`config/${name}`} actions={<Button kind="primary" busy={saving} disabled={text === null || file.isPending} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>}>
-        <QueryGate pending={file.isPending} error={file.isError ? file.error : null} label={`Loading ${name}…`}>
-          <textarea aria-label={name} className={`${inputCls} font-mono text-xs`} rows={28} disabled={saving} value={text ?? file.data?.text ?? ''} onChange={e => setText(e.target.value)} />
-          {text !== null && <p className="mt-2 text-xs text-warn">Unsaved changes</p>}
-          <MsgNotice msg={msg} />
-        </QueryGate>
-      </Card>
+      <TextFileEditor key={name} url={`/api/kit/config/${name}`} title={`config/${name}`} rows={28} small
+        savedNote="Saved. Run the kit self-tests on the Settings page after changing rules." />
     </div>
   );
 }
