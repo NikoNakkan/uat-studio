@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type Interaction } from '../api';
+import { refreshAfterAction } from '../lib/queries';
 import { useAction } from '../lib/useAction';
 import { Button, Notice, Pre } from '../ui';
 import { Questions } from './interaction/Questions';
@@ -15,7 +16,7 @@ export function InteractionCard({ item }: { item: Interaction }) {
   const { busy, error, run } = useAction();
   const send = (response: unknown) => run(typeof response === 'string' ? response : 'answers', async () => {
     await api.post(`/api/interactions/${item.id}`, { response });
-    qc.invalidateQueries();
+    refreshAfterAction(qc);
   });
   const p = item.payload;
   const choice = (value: string, label: string, busyLabel: string, kind: 'primary' | 'danger' | 'default' = 'default') => (

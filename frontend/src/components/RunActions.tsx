@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { refreshAfterAction } from '../lib/queries';
 import { useAction } from '../lib/useAction';
 import { Button } from '../ui';
 
@@ -17,7 +18,7 @@ export function RunActions({ runId, running, sealed, onDeleted, size = 'normal' 
   const qc = useQueryClient();
   const [confirm, setConfirm] = useState<Confirm>(null);
   const { busy, error, setError, run } = useAction();
-  const act = (what: string, fn: () => Promise<unknown>) => run(what, async () => { await fn(); qc.invalidateQueries(); });
+  const act = (what: string, fn: () => Promise<unknown>) => run(what, async () => { await fn(); refreshAfterAction(qc); });
   const del = () => act('delete', async () => {
     await api.del(`/api/runs/${runId}${sealed ? '?signed_off=true' : ''}`);
     setConfirm(null);

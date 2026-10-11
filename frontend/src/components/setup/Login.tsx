@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type Event } from '../../api';
+import { refreshAfterAction } from '../../lib/queries';
 import { useAction } from '../../lib/useAction';
 import { Button, Notice, Pre } from '../../ui';
 import { ExcelPicker } from '../ExcelPicker';
@@ -25,7 +26,7 @@ export function Login({ running, written }: { running: boolean; written: boolean
   const go = (name: string, fn: () => Promise<{ output?: string } | undefined>) => run(name, async () => {
     const r = await fn();
     if (r?.output) setOutput(r.output);
-    qc.invalidateQueries();
+    refreshAfterAction(qc);
   });
   const start = () => go('setup', () => {
     const form = new FormData();

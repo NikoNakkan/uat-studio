@@ -1,5 +1,5 @@
 // The data the app shares between pages, each defined once: one query key, one type, one refresh rate.
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { api, type EnvInfo, type Health, type Interaction, type Projects, type RunCost, type RunDetail, type RunSummary, type SetupCheck, type Settings } from '../api';
 
 /** tests/login.ts still holds this sentence until the login agent (or a person) has written it. */
@@ -26,8 +26,22 @@ export const useKitText = (path: string | null, refetchInterval?: number) => use
   enabled: !!path, refetchInterval,
 });
 
-/** Whether tests/login.ts has been written for this app: pending while unknown. */
+/**
+ * Whether tests/login.ts has been written for this app: pending only until the first answer. A project with no
+ * login.ts yet answers "not written" instead of an error: an error was retried and refetched every 5 s, each time
+ * going back to loading, which made "Set up is not finished" open and close by itself on a new project.
+ */
 export function useLoginWritten() {
-  const q = useKitText('tests/login.ts', 5000);
+  const q = useQuery({
+    queryKey: ['kittext', 'tests/login.ts'], refetchInterval: 5000, retry: false,
+    queryFn: () => api.get<{ text: string }>('/api/kit/text?path=tests%2Flogin.ts').catch(() => ({ text: LOGIN_TEMPLATE })),
+  });
   return { pending: q.isPending, written: !!q.data && !q.data.text.includes(LOGIN_TEMPLATE) };
 }
+
+/**
+ * After an answer, a stop or a delete: refresh what may have changed, but not the machine check. It runs every
+ * requirement check again (seconds of work), and one that fails for a moment while a run is busy made the
+ * home page's "Set up is not finished" open and close by itself. The Setup page refreshes it after a fix.
+ */
+export const refreshAfterAction = (qc: QueryClient) => qc.invalidateQueries({ predicate: q => q.queryKey[0] !== 'setup' });
