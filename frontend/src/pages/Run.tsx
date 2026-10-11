@@ -31,7 +31,7 @@ export function RunPage() {
     return {
       id: s.id, title: stageMeta(s).title, state,
       summary: state === 'waiting' ? 'Waiting for you. Answer in the live panel.' : s.note || stageMeta(s).about,
-      body: out ?? <p className="text-sm text-muted">The agent and its commands are in the live panel.</p>,
+      body: out,                                      // nothing to show: the step does not open
     };
   });
 

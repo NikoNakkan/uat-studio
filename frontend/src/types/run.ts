@@ -40,7 +40,7 @@ export type RunData = {
   progress: Progress | null;
   cases: Case[] | null;
   changes: { cases: Record<string, CaseChange> } | null;
-  generate_list: { test_id: string }[] | null;
+  generate_list: { test_id: string; test_name?: string; test_file?: string; group?: string }[] | null;
   test_check: { files: Record<string, TestCheckFile> } | null;
   flakiness: Record<string, Flaky> | null;
   evidence_check: EvidenceCheck | null;

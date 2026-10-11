@@ -9,7 +9,8 @@ export type StepDef = {
   /** One line shown under the title, open or closed: what the step did or will do. */
   summary?: ReactNode;
   state: StepState;
-  body: ReactNode;
+  /** What opens under the step; null when there is nothing to show, and then the step does not open. */
+  body: ReactNode | null;
 };
 
 /**
@@ -32,7 +33,7 @@ export function Stepper({ steps, label, loops = [] }: { steps: StepDef[]; label:
       {loops.length > 0 && <p className="sr-only">{loopsText(loops, title)}</p>}
       <ol ref={list} aria-label={label} className="grid">
         {steps.map((s, n) => (
-          <StepRow key={s.id} step={s} n={n + 1} last={n === steps.length - 1} open={open === s.id}
+          <StepRow key={s.id} step={s} n={n + 1} last={n === steps.length - 1} open={open === s.id && s.body != null}
             onToggle={() => setPick({ id: open === s.id ? undefined : s.id, focusAtPick: focus?.id })} />
         ))}
       </ol>
@@ -75,8 +76,8 @@ function StepRow({ step, n, last, open, onToggle }: { step: StepDef; n: number; 
         {step.state === 'done' ? '✓' : step.state === 'failed' ? '!' : n}
       </span>
       <div className={`mb-3 rounded-lg border ${open ? 'border-line bg-surface shadow-sm' : 'border-transparent'} ${step.state === 'waiting' ? 'border-warn/70' : ''}`}>
-        <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={bodyId}
-          className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-surface-2/60">
+        {step.body == null
+          ? <div className="flex w-full items-start gap-3 px-3 py-2.5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`font-semibold ${step.state === 'todo' || step.state === 'off' ? 'text-muted' : 'text-ink'}`}>{step.title}</span>
@@ -86,8 +87,20 @@ function StepRow({ step, n, last, open, onToggle }: { step: StepDef; n: number; 
             </div>
             {step.summary && <div className="mt-0.5 text-sm text-muted">{step.summary}</div>}
           </div>
-          <span aria-hidden className={`mt-1 text-muted transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
-        </button>
+          </div>
+          : <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={bodyId}
+              className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-surface-2/60">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`font-semibold ${step.state === 'todo' || step.state === 'off' ? 'text-muted' : 'text-ink'}`}>{step.title}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${step.state === 'waiting' ? 'bg-warn/15 text-warn'
+                : step.state === 'failed' ? 'bg-bad/15 text-bad' : step.state === 'done' ? 'bg-good/15 text-good'
+                : step.state === 'current' ? 'bg-accent text-accent-ink' : 'bg-surface-2 text-muted'}`}>{WORD[step.state]}</span>
+            </div>
+            {step.summary && <div className="mt-0.5 text-sm text-muted">{step.summary}</div>}
+          </div>
+              <span aria-hidden className={`mt-1 text-muted transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+            </button>}
         {open && <div id={bodyId} className="grid gap-4 border-t border-line px-3 py-4">{step.body}</div>}
       </div>
     </li>

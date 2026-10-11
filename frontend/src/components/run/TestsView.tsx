@@ -30,3 +30,27 @@ export function TestsView({ d }: { d: RunData }) {
     </div>
   );
 }
+
+/** The tests the generator wrote in this run, each opening its code. */
+export function GeneratedView({ d }: { d: RunData }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const file = useKitText(open);
+  const written = d.generate_list ?? [];
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <Card title={`Tests written in this run · ${written.length}`}>
+        <Table head={['Test', 'File']} rows={written.map(g => [
+          <span><b className="font-mono">{g.test_id}</b> <span className="text-muted">{(g.test_name ?? '').replace(g.test_id, '').trim()}</span></span>,
+          g.test_file ? <button className="font-mono text-left text-xs text-link hover:underline" onClick={() => setOpen(g.test_file ?? null)}>{g.test_file}</button> : '—',
+        ])} />
+        <p className="mt-3 text-xs text-muted">The other cases reuse the tests written in earlier runs.</p>
+      </Card>
+      <Card title={open ?? 'Test code'}>
+        {!open ? <Empty>Pick a test to read its code.</Empty>
+          : <QueryGate pending={file.isPending} error={file.isError ? file.error : null} label="Loading test code…">
+              <Pre className="max-h-[70vh] overflow-y-auto">{file.data?.text}</Pre>
+            </QueryGate>}
+      </Card>
+    </div>
+  );
+}
