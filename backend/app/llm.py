@@ -44,6 +44,8 @@ class AgentOutcome:
     model: str
     turns: int
     stopped: str            # end_turn | max_turns | max_tokens | error
+    cache_read_tokens: int = 0      # part of input_tokens served from the cache (about a tenth of the price)
+    cache_write_tokens: int = 0     # part of input_tokens written to the cache (about 1.25x the price)
 
 
 class MissingApiKey(RuntimeError):
@@ -71,16 +73,20 @@ async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list
     by_name = {t.name: t for t in tools}
     api = client()
     messages: list[dict] = [{"role": "user", "content": prompt}]
-    total_in = total_out = 0
+    total_in = total_out = cache_read = cache_write = 0
     final_text, stopped, turns = "", "end_turn", 0
     bus.emit(channel, "agent_start", agent=agent, stage=stage, model=model)
 
     while turns < turns_left:
         turns += 1
         try:
+            # Two cache points: the fixed system prompt, and (top-level, automatic) the end of the conversation.
+            # Every turn resends the whole conversation; without the second point each earlier page
+            # snapshot and tool result was paid in full again on every later turn.
             response = await api.messages.create(
                 model=model, max_tokens=settings.max_output_tokens,
                 system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+                cache_control={"type": "ephemeral"},
                 tools=[t.spec() for t in tools] or [], messages=messages)
         except Exception as e:  # noqa: BLE001 - shown to the person, run can be resumed
             bus.emit(channel, "agent_error", agent=agent, stage=stage, text=str(e))
@@ -88,8 +94,10 @@ async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list
             final_text = f"(the model call failed: {e})"
             break
         u = response.usage
-        total_in += (u.input_tokens or 0) + (getattr(u, "cache_read_input_tokens", 0) or 0) + \
-            (getattr(u, "cache_creation_input_tokens", 0) or 0)
+        read, write = u.cache_read_input_tokens or 0, u.cache_creation_input_tokens or 0
+        total_in += (u.input_tokens or 0) + read + write
+        cache_read += read
+        cache_write += write
         total_out += u.output_tokens or 0
         content = [b.model_dump(exclude_none=True) for b in response.content]
         messages.append({"role": "assistant", "content": content})
@@ -128,8 +136,8 @@ async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list
                  text=f"Stopped after {turns_left} turns (run limit). The stage can be resumed.")
 
     bus.emit(channel, "agent_end", agent=agent, stage=stage, model=model, turns=turns, stopped=stopped,
-             input_tokens=total_in, output_tokens=total_out)
-    return AgentOutcome(final_text, total_in, total_out, model, turns, stopped)
+             input_tokens=total_in, output_tokens=total_out, cache_read_tokens=cache_read, cache_write_tokens=cache_write)
+    return AgentOutcome(final_text, total_in, total_out, model, turns, stopped, cache_read, cache_write)
 
 
 async def complete_json(*, channel: str, agent: str, system: str, prompt: str, stage: str = "") -> tuple[Any, AgentOutcome]:
