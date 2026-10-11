@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { AppMapView } from '../components/AppMapView';
 import { Button, Card, Empty, Loading, MsgNotice, Notice, Pill, Pre, QueryGate, Table, Tabs, errorText, fail, inputCls, ok, useTitle, type Msg } from '../ui';
 
 const TAB_LABEL: Record<string, string> = {
@@ -56,13 +57,21 @@ function Glossary() {
 
 function AppMap() {
   const q = useQuery({ queryKey: ['appmap'], queryFn: () => api.get<{ text: string; data: any }>('/api/kit/app-map') });
+  const [view, setView] = useState<'map' | 'tables'>('map');
   if (q.isPending) return <Loading label="Loading the app map…" />;
   if (q.isError) return <Notice>{errorText(q.error)}</Notice>;
   const pages = q.data?.data?.pages ?? {};
   if (!Object.keys(pages).length) return <Empty>No app map yet. Playwright's planner writes it during the planner check.</Empty>;
   return (
     <div className="grid gap-4">
-      {Object.entries(pages).map(([key, p]: any) => (
+      <div className="flex gap-1 text-sm" role="tablist" aria-label="App map view">
+        {(['map', 'tables'] as const).map(v => (
+          <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
+            className={`rounded-md px-3 py-1 ${view === v ? 'bg-accent text-accent-ink' : 'border border-line bg-surface text-muted hover:text-ink'}`}>
+            {v === 'map' ? 'Map' : 'Tables'}</button>
+        ))}
+      </div>
+      {view === 'map' ? <AppMapView pages={pages} /> : Object.entries(pages).map(([key, p]: any) => (
         <Card key={key} title={`${key} · ${p.address ?? ''}`}>
           {p.reached_by && <p className="mb-2 text-sm text-muted">Reached by: {p.reached_by}</p>}
           <Table head={['Role', 'Name', 'Example text', 'Test ID']} rows={(p.elements ?? []).map((e: any) => [e.role, e.name || '—', e.example_text ?? '', e.test_id ?? ''])} />
