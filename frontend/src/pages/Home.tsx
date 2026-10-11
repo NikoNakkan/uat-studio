@@ -72,7 +72,7 @@ function SetupStatus() {
   const login = useLoginWritten();
   const accounts = env.data?.accounts ?? [];
   const items = [
-    { ok: !!settings.data?.api_key_set, label: 'API key' },
+    { ok: !!settings.data?.ai_ready, label: settings.data?.provider === 'copilot' ? 'GitHub Copilot' : 'API key' },
     { ok: !!check.data?.rows.every(r => r.status === 'OK' || r.status === 'INFO'), label: 'this machine' },
     { ok: accounts.length > 0 && accounts.every(a => a.user_set && a.password_set), label: `${accounts.length} test account${accounts.length === 1 ? '' : 's'}` },
     { ok: login.written, label: 'login' },

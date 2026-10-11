@@ -103,6 +103,10 @@ async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list
                     stage: str = "", max_turns: int | None = None) -> AgentOutcome:
     """Run one agent conversation to its end. Raises MissingApiKey when no key is set."""
     settings = load_settings()
+    if settings.provider == "copilot":                 # the same conversation on the person's Copilot plan
+        from .copilot_llm import run_agent as run_on_copilot  # noqa: PLC0415 - copilot_llm imports this module
+        return await run_on_copilot(channel=channel, agent=agent, system=system, prompt=prompt, tools=tools,
+                                    stage=stage, max_turns=max_turns)
     model = settings.model_for(agent)
     turns_left = max_turns or settings.max_turns
     by_name = {t.name: t for t in tools}

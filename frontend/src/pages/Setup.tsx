@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ApiKeyBox } from '../components/ApiKey';
+import { AiProviderCard } from '../components/AiProvider';
 import { useLive } from '../components/Live';
 import { Stepper, type StepDef, type StepState } from '../components/Stepper';
 import { Accounts, accountSummary } from '../components/setup/Accounts';
@@ -33,9 +33,10 @@ export function SetupPage() {
 
   const steps: StepDef[] = [
     {
-      id: 'key', title: 'Anthropic API key', state: stateOf(!!settings.data?.api_key_set, settings.isPending),
-      summary: settings.data?.api_key_set ? `Saved (ends ${settings.data.api_key_hint})` : 'The AI agents need it. It stays on this machine.',
-      body: <ApiKeyBox settings={settings.data} />,
+      id: 'key', title: 'Who runs the AI', state: stateOf(!!settings.data?.ai_ready, settings.isPending),
+      summary: settings.data?.provider === 'copilot' ? 'GitHub Copilot, with your Copilot plan.'
+        : settings.data?.api_key_set ? `Anthropic API key saved (ends ${settings.data.api_key_hint})` : 'An Anthropic API key or a GitHub Copilot plan.',
+      body: settings.data ? <AiProviderCard settings={settings.data} /> : null,
     },
     {
       id: 'machine', title: 'This machine', state: stateOf(machineOk, check.isPending),

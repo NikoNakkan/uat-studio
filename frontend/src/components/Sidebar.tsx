@@ -84,8 +84,9 @@ export function Sidebar() {
           ? <Status ok={false} label="Cannot reach the server" hide={hide} />
           : <Status pending={health.isPending} ok={!!health.data?.kit_found} hide={hide}
               label={health.isPending ? 'Checking the kit…' : health.data?.kit_found ? 'Kit found' : 'Kit not found'} />}
-        <Status pending={settings.isPending} ok={!!settings.data?.api_key_set} hide={hide}
-          label={settings.isPending ? 'Checking the API key…' : settings.isError ? 'API key unknown' : settings.data?.api_key_set ? 'API key set' : 'No API key'} />
+        <Status pending={settings.isPending} ok={!!settings.data?.ai_ready} hide={hide}
+          label={settings.isPending ? 'Checking the AI…' : settings.isError ? 'AI unknown'
+            : settings.data?.provider === 'copilot' ? 'AI: GitHub Copilot' : settings.data?.api_key_set ? 'API key set' : 'No API key'} />
         {!health.isPending && health.data?.running?.length ? <Status ok label={`Running: ${health.data.running[0]}`} hide={hide} /> : null}
         {open.isPending
           ? <Status pending label="Checking for questions…" hide={hide} />

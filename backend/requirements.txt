@@ -1,6 +1,7 @@
 fastapi>=0.143
 uvicorn[standard]>=0.54
 anthropic>=1.13
+github-copilot-sdk>=1.0.19          # optional AI provider: the person's GitHub Copilot plan
 mcp>=2.3
 python-multipart>=0.0.32
 pydantic>=2.14

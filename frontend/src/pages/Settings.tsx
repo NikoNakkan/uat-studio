@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Settings } from '../api';
 import { AgentModels, ModelGuide } from '../components/AgentModels';
-import { ApiKeyBox } from '../components/ApiKey';
+import { AiProviderCard } from '../components/AiProvider';
 import { changedAgents, recommendedModels } from '../lib/models';
 import { useSettings } from '../lib/queries';
 import { useAction } from '../lib/useAction';
@@ -15,7 +15,7 @@ const draftOf = (s: Settings): Draft => ({
   models: s.models, default_model: s.default_model, max_turns: s.max_turns, max_output_tokens: s.max_output_tokens, show_agent_browser: s.show_agent_browser,
 });
 
-/** The app's own settings: API key, model per agent and run limits, the kit's checks, token use across runs. */
+/** The app's own settings: who runs the AI (API key or Copilot), model per agent and run limits, the kit's checks, token use across runs. */
 export function SettingsPage() {
   useTitle('Settings');
   const s = useSettings();
@@ -25,7 +25,7 @@ export function SettingsPage() {
       {s.isPending ? <Loading label="Loading settings…" />
         : s.isError || !s.data ? <Notice>{errorText(s.error ?? 'Settings could not be loaded.')}</Notice>
         : <>
-            <Card title="Anthropic API key"><ApiKeyBox settings={s.data} /></Card>
+            <AiProviderCard settings={s.data} />
             <ModelsCard settings={s.data} />
             <KitCard kitDir={s.data.kit_dir} />
             <UsageCard />

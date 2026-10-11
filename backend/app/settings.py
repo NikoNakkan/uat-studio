@@ -1,4 +1,4 @@
-"""Where things are, and the app's own settings (API key, model per agent).
+"""Where things are, and the app's own settings (AI provider, API key, model per agent).
 
 Settings live outside every repository, in ~/.uat-studio/settings.json, so the API key is never
 committed. The key is never sent back to the browser; the UI only sees whether one is set.
@@ -9,6 +9,7 @@ import contextlib
 import json
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +25,7 @@ DEFAULT_MODEL = SONNET                                             # agents outs
 
 
 class Settings(BaseModel):
+    provider: Literal["anthropic", "copilot"] = "anthropic"       # who runs the agents: an API key, or a Copilot plan
     api_key: str = ""
     models: dict[str, str] = Field(default_factory=dict)          # agent -> model id, only where not the recommended one
     default_model: str = DEFAULT_MODEL
@@ -48,6 +50,8 @@ class Settings(BaseModel):
     def public(self) -> dict:
         key = self.effective_api_key()
         return {
+            "provider": self.provider,
+            "ai_ready": self.provider == "copilot" or bool(key),      # Copilot readiness is checked live (sign-in)
             "api_key_set": bool(key),
             "api_key_hint": f"…{key[-4:]}" if len(key) > 8 else "",
             "api_key_from_env": bool(not self.api_key and os.environ.get("ANTHROPIC_API_KEY")),
