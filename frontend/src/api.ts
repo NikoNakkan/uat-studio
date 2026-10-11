@@ -70,5 +70,8 @@ export type Account = { name: string; label: string; user: string; user_set: boo
 export type EnvInfo = { env_exists: boolean; start_page: string; accounts: Account[]; allowed_origins: string[] };
 export type Health = { ok: boolean; kit: string; kit_found: boolean; running: string[]; project: string };
 
-export type Project = { id: string; name: string; dir: string; current: boolean; runs: number; running: string[]; created: string };
+/** What testing the app by hand costs: a person's hourly rate (null until entered) and the hours it takes. */
+export type Savings = { hourly_rate: number | null; manual_hours: number };
+export type Project = { id: string; name: string; dir: string; current: boolean; runs: number; running: string[]; created: string;
+  savings: Savings };
 export type Projects = { current: string; projects: Project[] };

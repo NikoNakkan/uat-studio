@@ -5,7 +5,7 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import kit, projects
 from ..engine import engine
@@ -22,7 +22,7 @@ def _project_rows() -> list[dict]:
     for p in projects.all_projects():
         token = projects.use(p["id"])
         try:
-            out.append({**p, "dir": str(projects.current_dir()), "current": p["id"] == current,
+            out.append({**p, "dir": str(projects.current_dir()), "current": p["id"] == current, "savings": projects.savings(p),
                         "runs": len(kit.list_runs()), "running": engine.running()})
         finally:
             projects.reset(token)
@@ -83,6 +83,20 @@ def rename_project(pid: str, body: RenameIn):
     except KeyError:
         raise HTTPException(404, "No such project") from None
     return list_projects()
+
+
+class SavingsIn(BaseModel):
+    hourly_rate: float | None = Field(None, ge=0, le=10_000)
+    manual_hours: float = Field(projects.MANUAL_HOURS, gt=0, le=1_000)
+
+
+@router.put("/projects/{pid}/savings")
+def set_savings(pid: str, body: SavingsIn):
+    """What a person costs per hour and how long testing this app by hand takes, to show what the runs save."""
+    try:
+        return projects.set_savings(pid, body.hourly_rate, body.manual_hours)
+    except KeyError:
+        raise HTTPException(404, "No such project") from None
 
 
 @router.post("/projects/{pid}/sync")

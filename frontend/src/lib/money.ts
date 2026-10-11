@@ -4,6 +4,7 @@
  */
 export function usd(amount: number | null | undefined): string {
   if (!amount) return '$0';
+  if (amount < 0) return usd(-amount).replace('$', '−$');     // a loss: "≈ −$12"
   if (amount < 0.01) return 'under $0.01';
   if (amount < 1) return `≈ $${amount.toFixed(2)}`;
   return `≈ $${Math.round(amount)}`;

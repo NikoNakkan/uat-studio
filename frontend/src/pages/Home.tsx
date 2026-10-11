@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { SavingsCard } from '../components/home/SavingsCard';
 import { RunCard } from '../components/runs/RunCard';
 import { stateOf, when } from '../components/runs/runState';
 import { useEnv, useInteractions, useLoginWritten, useProjects, useRuns, useSettings, useSetupCheck } from '../lib/queries';
@@ -8,7 +9,8 @@ import { Card, Empty, QueryGate, useTitle } from '../ui';
 /** The project's home: is it ready, what happened last, what needs the person, and a way to start a run. */
 export function HomePage() {
   const projects = useProjects();
-  const name = projects.data?.projects.find(p => p.current)?.name ?? 'This project';
+  const project = projects.data?.projects.find(p => p.current);
+  const name = project?.name ?? 'This project';
   useTitle(name);
   const env = useEnv();
   const runs = useRuns();
@@ -58,6 +60,7 @@ export function HomePage() {
             </ul>
           </Card>
         )}
+        {project && <SavingsCard project={project} runs={list} />}
       </QueryGate>
     </div>
   );

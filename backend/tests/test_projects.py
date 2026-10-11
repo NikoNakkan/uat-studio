@@ -81,3 +81,15 @@ def test_rename_and_bad_input(client, shop):
 def test_a_second_project_of_the_same_name_gets_its_own_id(client, shop):
     r = client.post("/api/projects", json={"name": "Shop", "start_page": "https://shop2.test"}).json()
     assert r["current"] == "shop-2" and projects.get("shop-2")
+
+
+def test_savings_settings_are_per_project_and_start_at_4_hours(client, shop):
+    rows = {p["id"]: p for p in client.get("/api/projects").json()["projects"]}
+    assert rows[shop["current"]]["savings"] == {"hourly_rate": None, "manual_hours": 4.0}
+    r = client.put(f"/api/projects/{shop['current']}/savings", json={"hourly_rate": 45, "manual_hours": 6.5})
+    assert r.json() == {"hourly_rate": 45, "manual_hours": 6.5}
+    rows = {p["id"]: p for p in client.get("/api/projects").json()["projects"]}
+    assert rows[shop["current"]]["savings"]["manual_hours"] == 6.5
+    assert rows["main"]["savings"]["hourly_rate"] is None                   # other projects keep their own
+    assert client.put(f"/api/projects/{shop['current']}/savings", json={"hourly_rate": -1}).status_code == 422
+    assert client.put("/api/projects/nope/savings", json={"hourly_rate": 1}).status_code == 404

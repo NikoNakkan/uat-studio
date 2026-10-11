@@ -106,6 +106,25 @@ def rename(pid: str, name: str) -> dict:
     raise KeyError(pid)
 
 
+MANUAL_HOURS = 4.0      # how long a person needs to test an app by hand, until the project says otherwise
+
+
+def savings(p: dict) -> dict:
+    """What testing this app by hand costs: a person's hourly rate (None until someone enters it) and hours."""
+    s = p.get("savings") or {}
+    return {"hourly_rate": s.get("hourly_rate"), "manual_hours": s.get("manual_hours", MANUAL_HOURS)}
+
+
+def set_savings(pid: str, hourly_rate: float | None, manual_hours: float) -> dict:
+    data = _load()
+    for p in data["projects"]:
+        if p["id"] == pid:
+            p["savings"] = {"hourly_rate": hourly_rate, "manual_hours": manual_hours}
+            _save(data)
+            return savings(p)
+    raise KeyError(pid)
+
+
 def _copy(src: Path, dst: Path) -> None:
     if src.is_dir():
         shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
