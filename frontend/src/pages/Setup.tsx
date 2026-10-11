@@ -49,7 +49,7 @@ export function SetupPage() {
       body: env.isError ? <Notice>{errorText(env.error)}</Notice> : env.data ? <AppUnderTest env={env.data} onSaved={envSaved} /> : <Loading />,
     },
     {
-      // The accounts and how the tests log in with them: one step, since the login needs the accounts first.
+      // How the tests log in, then the accounts it logs in as: one step.
       id: 'accounts', title: 'Test accounts',
       state: env.isPending || login.pending ? 'todo' : loginWaiting ? 'waiting' : running ? 'current'
         : accountsOk && login.written ? 'done' : 'current',
@@ -58,11 +58,14 @@ export function SetupPage() {
            login.written ? 'login written' : 'login not written yet'].join(' · '),
       body: env.data ? (
         <div className="grid gap-5">
-          <Accounts env={env.data} onSaved={envSaved} />
-          <section className="grid gap-2 border-t border-line pt-4">
+          <section className="grid gap-2">
             <h3 className="font-semibold">How the tests log in</h3>
-            <p className="text-sm text-muted">{login.written ? 'tests/login.ts is written.' : 'The login agent writes tests/login.ts once, by looking at your login page, then proves each account above logs in.'}</p>
+            <p className="text-sm text-muted">{login.written ? 'tests/login.ts is written.' : 'The login agent writes tests/login.ts once, by looking at your login page, then proves each account below logs in.'}</p>
             <Login running={running} written={login.written} />
+          </section>
+          <section className="grid gap-2 border-t border-line pt-4">
+            <h3 className="font-semibold">The accounts</h3>
+            <Accounts env={env.data} onSaved={envSaved} />
           </section>
         </div>
       ) : <Loading />,
