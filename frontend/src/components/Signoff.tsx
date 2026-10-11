@@ -34,8 +34,10 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
   return (
     <div className="grid gap-4">
       <Card title={sealed ? `Signed off and sealed on ${r.data.manifest.sealed_at}` : `Sign-off per ${check.sign_off_unit}`}
-        actions={!sealed && <Field label="Decided by"><input className={inputCls} value={by} placeholder="Your name"
-          onChange={e => { setBy(e.target.value); localStorageSet('uat-signoff-by', e.target.value); }} /></Field>}>
+        actions={!sealed && <Field label="Decided by" hint={by.trim() ? undefined : 'Enter your name to record decisions.'}>
+          <input className={`${inputCls} ${by.trim() ? '' : 'border-warn ring-1 ring-warn/40'}`} value={by} placeholder="Your name" aria-required
+            onChange={e => { setBy(e.target.value); localStorageSet('uat-signoff-by', e.target.value); }} /></Field>}>
+        <p className="mb-2 text-xs text-muted">✦ marks the AI's recommendation. You decide; every decision is recorded with your name.</p>
         <Table head={['Unit', 'Tests', 'AI recommendation', 'Reasoning', 'Decision']} rows={units.map(([unit, u]) => [
           <b>{unit}</b>, <span className="font-mono text-xs">{u.tests.join(', ')}</span>, <Pill value={u.recommendation} />,
           <span className="text-sm">{reasoning[unit] ?? ''}</span>,
@@ -71,19 +73,35 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
   );
 }
 
+const DECISIONS = [
+  { value: 'PASS', on: 'bg-good text-white border-good' },
+  { value: 'CONCERNS', on: 'bg-warn text-white border-warn' },
+  { value: 'FAIL', on: 'bg-bad text-white border-bad' },
+  { value: 'WAIVED', on: 'bg-ink text-surface border-ink' },
+];
+
+/** One decision per unit: four buttons (the AI's recommendation picked and marked), a reason, Record. */
 function Decide({ unit, suggested, disabled, busy, onDecide }: { unit: string; suggested: string; disabled: boolean; busy?: boolean; onDecide: (d: string, reason: string) => void }) {
   const [decision, setDecision] = useState(suggested === 'MANUAL' ? 'PASS' : suggested);
   const [reason, setReason] = useState('');
+  const needsReason = decision === 'WAIVED' && !reason.trim();
   return (
-    <div className="grid gap-1.5">
-      <div className="flex gap-1.5">
-        <select aria-label={`Decision for ${unit}`} className={inputCls} value={decision} onChange={e => setDecision(e.target.value)}>
-          {['PASS', 'CONCERNS', 'FAIL', 'WAIVED'].map(v => <option key={v}>{v}</option>)}
-        </select>
-        <Button kind="primary" busy={busy} disabled={disabled || (decision === 'WAIVED' && !reason.trim())} onClick={() => onDecide(decision, reason)}>{busy ? 'Recording…' : 'Record'}</Button>
+    <div className="grid min-w-[19rem] gap-2">
+      <div role="radiogroup" aria-label={`Decision for ${unit}`} className="flex flex-wrap gap-1">
+        {DECISIONS.map(d => (
+          <button key={d.value} type="button" role="radio" aria-checked={decision === d.value} onClick={() => setDecision(d.value)}
+            title={d.value === suggested ? 'The AI recommends this' : undefined}
+            className={`rounded-md border px-2 py-1 text-xs font-semibold ${decision === d.value ? d.on : 'border-line bg-surface text-muted hover:text-ink'}`}>
+            {d.value}{d.value === suggested ? ' ✦' : ''}
+          </button>
+        ))}
       </div>
-      <input className={inputCls} placeholder={decision === 'WAIVED' ? 'Why is this accepted? (required)' : 'Reason (optional)'} value={reason} onChange={e => setReason(e.target.value)} />
-      {disabled && <span className="text-xs text-muted">Enter your name first.</span>}
+      <div className="flex gap-1.5">
+        <input className={`${inputCls} min-w-0 flex-1`} aria-label={`Reason for ${unit}`}
+          placeholder={decision === 'WAIVED' ? 'Why is this accepted? (required)' : 'Reason (optional)'} value={reason} onChange={e => setReason(e.target.value)} />
+        <Button kind="primary" busy={busy} disabled={disabled || needsReason} title={disabled ? 'Enter your name at the top first' : needsReason ? 'A waiver needs a reason' : undefined}
+          onClick={() => onDecide(decision, reason)}>{busy ? 'Recording…' : 'Record'}</Button>
+      </div>
     </div>
   );
 }
