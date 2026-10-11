@@ -17,10 +17,10 @@ OK       Playwright 1.64.0
 MISSING  Python package pyyaml  -> pip install -r requirements.txt
 OK       Playwright agents (planner, generator, healer)
 BROKEN   Start page reachable: https://test.app.com (URLError)  -> check the address, VPN or that the app is running
-MISSING  .env: MANAGER_TEST_ACCOUNT_PASSWORD  -> fill it in .env (never in the Excel)
+MISSING  account value MANAGER_TEST_ACCOUNT_PASSWORD  -> fill it in (UAT Studio: Set up; else an environment variable), never in the Excel
 ```
 
-- The script never prints secret values, and you never open .env.
+- The script never prints secret values, and you never handle them.
 - Fix commands: `npm install`, `npx playwright install chromium`, `pip install -r requirements.txt`,
   `npx playwright init-agents --loop=vscode` (re-creates Playwright's three agents and the MCP server
   entry; run it again after upgrading Playwright).

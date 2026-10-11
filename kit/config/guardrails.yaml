@@ -17,7 +17,7 @@ blocked_tools:                       # refused outright
   - planner_save_plan                # decision 4: the planner reports mismatches; it never rewrites our plan
 
 protected_files:                     # no agent may open these with any file tool or shell command
-  - .env                             # the passwords (rule 6 in AGENTS.md); tests read it, agents never do
+  - .env                             # any stray secrets file; passwords live in UAT Studio, never in the project
 
 never_click:                         # refused outright (exact element names, any case)
   - Clear all

@@ -68,7 +68,7 @@ def main():
     if blocked:
         return decide("deny", f"{blocked} is blocked in UAT runs (config/guardrails.yaml).")
 
-    # Files no agent may open, however the tool is called (.env holds the passwords, rule 6 in AGENTS.md)
+    # Files no agent may open, however the tool is called (a stray secrets file such as .env, rule 6 in AGENTS.md)
     protected = [p.lower() for p in RULES.get("protected_files") or []]
     if protected and "browser_" not in tool:
         for s in strings_in(args):

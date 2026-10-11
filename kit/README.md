@@ -16,8 +16,8 @@ kit, with every issue found and its status, is `REVIEW.md`.
 | Node.js 20.12+ | Runs Playwright and its MCP server (`process.loadEnvFile` needs 20.12) | https://nodejs.org |
 | Playwright and Chromium | The browser and the test runner | `npm install` then `npx playwright install chromium` |
 | Python 3.10+ | The scripts that read Excel, check tests and write results | `pip install -r requirements.txt` |
-| Test accounts | Logins named in the Excel's "Login as" column | Copy `.env.example` to `.env` and fill it in (never committed) |
-| Your app's address | The only site the browser may open | `START_PAGE` in `.env`, and the same site in `config/guardrails.yaml` |
+| Test accounts | Logins named in the Excel's "Login as" column | UAT Studio's Set up (kept by Studio, never in the project); on your own: `<KEY>_USER` and `<KEY>_PASSWORD` environment variables |
+| Your app's address | The only site the browser may open | UAT Studio takes it from the Excel; on your own: a `START_PAGE` environment variable, and the same site in `config/guardrails.yaml` |
 
 Then, in Copilot chat: `/setup-uat`. It checks all of the above and asks before installing anything.
 If your app has a login: `/setup-login`, once. It asks which kind of login the app has, maps the login
@@ -83,7 +83,7 @@ imports `tests/canvas-fixtures.ts`:
 
 Rules: `.github/skills/testing-canvas-apps/` and `mapping-canvas-apps/`; settings: `config/power-platform.yaml`;
 login with Microsoft Entra ID: login-patterns.md pattern 15 (MFA accounts use a session saved by Microsoft's
-`playwright-ms-auth`, via `<ACCOUNT>_STORAGE_STATE` in `.env`). `npm run selftest:canvas` checks the helpers in a
+`playwright-ms-auth`, via an `<ACCOUNT>_STORAGE_STATE` environment variable). `npm run selftest:canvas` checks the helpers in a
 real browser against a fake canvas player. The helpers are adapted from Microsoft's official
 [power-platform-playwright-samples](https://github.com/microsoft/power-platform-playwright-samples), which
 replaces the deprecated Power Apps Test Engine. Not yet tried against a real tenant.

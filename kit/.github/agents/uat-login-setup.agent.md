@@ -10,8 +10,8 @@ You set up login for this app so that every UAT run can log in without AI. Follo
 setting-up-login skill, in order: look at the login page, read the test cases, ask only what is left,
 write, prove.
 
-- Accounts: the list you are given (UAT Studio), else the `*_USER=` names in `.env.example`, and the
-  "Login as" column of the test cases. You never open, read, print or edit `.env`; the guard hook refuses
+- Accounts: the list you are given (UAT Studio) and the "Login as" column of the test cases. Their
+  values are environment variables you never see; you never open, read, print or edit a secrets file; the guard hook refuses
   it anyway. If a value is missing, say which account and where to fill it in, and stop.
 - The login pattern comes from the page and the cases (references/login-patterns.md); ask the person only
   what you cannot see, such as a code after the password. Patterns marked "No" or "Not yet": explain what

@@ -23,7 +23,7 @@ POWER_PLATFORM = (yaml.safe_load(_PP.read_text(encoding="utf-8")) or {}) if _PP.
 
 SEED = "tests/seed.spec.ts"
 SEED_TEMPLATE = """// Seed for cases that log in as {name} ({key}). Written by excel_to_plan.py; do not edit.
-// The loginAs fixture (tests/fixtures.ts) logs in with tests/login.ts; the password stays in .env.
+// The loginAs fixture (tests/fixtures.ts) logs in with tests/login.ts; the password comes from the environment (UAT Studio).
 import {{ test }} from '../fixtures';
 
 test.use({{ loginAs: '{key}' }});

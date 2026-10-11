@@ -8,15 +8,14 @@ from pathlib import Path
 from .kit import kit_dir, list_runs, read_json, runs_dir
 
 
-def env_example_accounts() -> list[str]:
-    p = kit_dir() / ".env.example"
-    if not p.exists():
-        return []
-    return re.findall(r"^([A-Z0-9_]+)_USER=", p.read_text(encoding="utf-8"), re.M)
+def added_accounts() -> list[str]:
+    """Accounts added on Setup before their values were typed."""
+    from . import projects, vault  # noqa: PLC0415 - projects imports this module's neighbours
+    return vault.accounts(projects.current_id())
 
 
 def env_values() -> dict[str, str]:
-    """The project's private values (start page, accounts): kept by Studio, with an old .env as fallback.
+    """The project's private values (start page, accounts): kept by Studio (vault.py), never a file in the project.
     Only the app reads them; agents never see these values."""
     from . import projects, vault  # noqa: PLC0415 - projects imports this module's neighbours
     return vault.values(projects.current_id(), kit_dir())
@@ -74,7 +73,7 @@ def accounts_overview(cases: list[dict]) -> list[dict]:
     for c in cases:
         if c.get("login_as"):
             used.setdefault(account_key(c["login_as"]), []).append(c.get("test_id", "?"))
-    names = list(dict.fromkeys([*env_example_accounts(), *(k[:-5] for k in values if k.endswith("_USER")), *used]))
+    names = list(dict.fromkeys([*added_accounts(), *(k[:-5] for k in values if k.endswith("_USER")), *used]))
     return [{"name": n, "label": account_label(n), "user": values.get(f"{n}_USER", ""),
              "user_set": bool(values.get(f"{n}_USER")), "password_set": bool(values.get(f"{n}_PASSWORD")),
              "used_by": used.get(n, [])} for n in names]

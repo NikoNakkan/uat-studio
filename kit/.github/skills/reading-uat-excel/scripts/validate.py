@@ -13,16 +13,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "scripts"))
-from common import account_key, origin_allowed  # noqa: E402
+from common import origin_allowed  # noqa: E402
 
 TEMPLATE = yaml.safe_load((ROOT / "config" / "excel-template.yaml").read_text(encoding="utf-8"))
 GUARD = yaml.safe_load((ROOT / "config" / "guardrails.yaml").read_text(encoding="utf-8"))
 
-
-def env_accounts():
-    example = ROOT / ".env.example"
-    keys = re.findall(r"^([A-Z0-9_]+)_USER=", example.read_text(encoding="utf-8"), re.M) if example.exists() else []
-    return set(keys)
 
 
 def main():
@@ -38,7 +33,6 @@ def main():
         problems.append(f"Row {case['row']}, column '{header[key]}' ({case.get('test_id') or 'no Test ID'}): {text}")
 
     ids = [c["test_id"] for c in cases if c["test_id"]]
-    accounts = env_accounts()
     for case in cases:
         for key, col in cols.items():
             if col["required"] and not case[key]:
@@ -69,8 +63,6 @@ def main():
             elif e["step"] not in valid:
                 problem(case, "expected_results", f"refers to step {e['step']}, which does not exist")
 
-        if case["login_as"] and account_key(case["login_as"]) not in accounts:
-            problem(case, "login_as", f"no test account '{account_key(case['login_as'])}_USER' in .env.example")
         for key, col in cols.items():                       # columns with a fixed list of values (Priority, Automation)
             allowed = col.get("values")
             if allowed and case.get(key) and case[key].strip().lower() not in [a.lower() for a in allowed]:

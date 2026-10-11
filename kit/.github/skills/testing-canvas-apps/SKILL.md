@@ -84,7 +84,7 @@ Microsoft Entra ID. Two ways, both in the setting-up-login skill (`references/lo
 pattern "Microsoft Entra ID"):
 - **Form login** written once in `tests/login.ts` (email, Next, password, Sign in, "Stay signed in?" No).
 - **Accounts with MFA or certificate sign-in**: sign in with Microsoft's tool (`npm run auth:headful` in
-  `power-platform-playwright-samples/packages/e2e-tests`), then set `<ACCOUNT>_STORAGE_STATE` in `.env` to
+  `power-platform-playwright-samples/packages/e2e-tests`), then set the `<ACCOUNT>_STORAGE_STATE` environment variable to
   the saved `state-<email>.json`. The fixture uses that session as it is. Sessions last about 24 hours.
 
 ## Sites

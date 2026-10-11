@@ -29,7 +29,7 @@ def test_new_project_starts_blank_with_the_kit_code(client, kit_dir, shop):
     assert folder != kit_dir and (folder / "scripts" / "features.py").exists() and (folder / ".github" / "agents").exists()
     assert "write login() for your app" in (folder / "tests" / "login.ts").read_text(encoding="utf-8")
     assert "allowed_origins:\n  - https://shop.test\n" in (folder / "config" / "guardrails.yaml").read_text(encoding="utf-8")
-    assert not (folder / ".env").exists()                                 # Studio keeps the private values itself
+    assert not list(folder.glob(".env*"))                                 # Studio keeps the private values itself
     assert client.get("/api/env", headers=H("shop")).json()["start_page"] == "https://shop.test/start"
     assert not list((folder / "runs").glob("2*")) and not (folder / "app-map" / "app-map.yaml").exists()
 
@@ -60,15 +60,30 @@ def test_the_cookie_picks_the_project(client, shop):
 def test_update_kit_files_copies_code_not_data(client, kit_dir, shop):
     from pathlib import Path
     folder = Path(next(p["dir"] for p in shop["projects"] if p["id"] == "shop"))
-    (folder / ".env").write_text("START_PAGE=https://shop.test/kept\n", encoding="utf-8")
+    (folder / "GLOSSARY.md").write_text("kept", encoding="utf-8")
     marker = kit_dir / "scripts" / "new_helper.py"
     marker.write_text("# new in the main kit\n", encoding="utf-8")
     try:
         r = client.post("/api/projects/shop/sync").json()
         assert "scripts" in r["updated"] and (folder / "scripts" / "new_helper.py").exists()
-        assert (folder / ".env").read_text(encoding="utf-8") == "START_PAGE=https://shop.test/kept\n"
+        assert (folder / "GLOSSARY.md").read_text(encoding="utf-8") == "kept"
     finally:
         marker.unlink()
+
+
+def test_an_old_env_is_copied_in_once_then_never_read(client, shop):
+    from pathlib import Path
+
+    from app import vault
+    folder = Path(next(p["dir"] for p in shop["projects"] if p["id"] == "shop"))
+    kept = vault._file("shop").read_text(encoding="utf-8")
+    vault._file("shop").unlink()                                          # as before Studio kept the values
+    (folder / ".env").write_text("START_PAGE=https://shop.test/old\nCLERK_USER=clerk\n", encoding="utf-8")
+    assert client.get("/api/env", headers=H("shop")).json()["start_page"] == "https://shop.test/old"
+    (folder / ".env").write_text("START_PAGE=https://shop.test/changed\n", encoding="utf-8")
+    assert client.get("/api/env", headers=H("shop")).json()["start_page"] == "https://shop.test/old"
+    (folder / ".env").unlink()
+    vault._file("shop").write_text(kept, encoding="utf-8")
 
 
 def test_rename_and_bad_input(client, shop):

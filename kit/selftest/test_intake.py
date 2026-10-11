@@ -47,7 +47,6 @@ def test_validate_names_row_and_column(kit):
                  "the same Test ID is used on more than one row",
                  "https://elsewhere.example.com is not in config/guardrails.yaml allowed_origins",
                  "Row 4, column 'Test ID' (TC 03): use only letters",
-                 "no test account 'NOBODY_ACCOUNT_USER' in .env.example",
                  "'sometimes' is not one of auto, manual",
                  "'Urgent' is not one of High, Medium, Low",
                  "Row 5, column 'Title' (TC-04): required, but empty"]:

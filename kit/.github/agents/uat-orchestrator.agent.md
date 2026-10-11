@@ -100,7 +100,7 @@ and Check rules above with these (the body already says so too):
 
 ## Never
 
-- Read or print .env. Passwords never appear in chat or in any file you write.
+- Read or print account values. Passwords never appear in chat or in any file you write.
 - Edit the Excel, a plan in specs/, a seed in tests/seeds/, tests/login.ts, or a test file yourself.
 - Resume from `runs/current`: it is Playwright's scratch folder, not a run (`progress.py latest` skips it).
 - Change a test result, a recommendation or a decision.

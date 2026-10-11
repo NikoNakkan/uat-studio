@@ -1,10 +1,10 @@
 """Projects: one app under test each, each in its own kit folder.
 
-A project folder holds everything that belongs to one app: its start page and allowed sites, its test
-accounts (.env), tests/login.ts, the generated tests, the app map, the glossary, the feature switches and
-the runs. The kit's code (scripts, agents, skills, templates) is copied in from the main kit when the
-project is created, and can be updated from it later; the kit's scripts work relative to their own folder,
-so they need no change.
+A project folder holds everything that belongs to one app: its allowed sites, tests/login.ts,
+the generated tests, the app map, the glossary, the feature switches and the runs. Its start page and test
+accounts are kept by Studio (vault.py), never in the folder. The kit's code (scripts, agents, skills,
+templates) is copied in from the main kit when the project is created, and can be updated from it later;
+the kit's scripts work relative to their own folder, so they need no change.
 
 Which project a request is for comes from the uat_project cookie (set by the project switcher) and is kept
 in a context variable. A run started in a project keeps that project for its whole life, because asyncio
@@ -160,7 +160,7 @@ def _link_node_modules(target: Path) -> str:
 
 
 def sync_code(target: Path) -> list[str]:
-    """Copy the main kit's code into a project folder; tests, app map, runs, .env and config stay as they are.
+    """Copy the main kit's code into a project folder; tests, app map, runs and config stay as they are.
     Config files the project does not have yet are added."""
     if target.resolve() == KIT_DIR.resolve():
         return []
@@ -210,8 +210,6 @@ def create(name: str, start_page: str, root: Path | None = None) -> dict:
                             flags=re.S | re.M), encoding="utf-8")
     _copy(KIT_DIR / "templates" / "login.ts", folder / "tests" / "login.ts")
     for rel, body in {
-        ".env.example": "# For the kit on its own (VS Code): copy to .env. UAT Studio keeps these values itself.\n"
-                        f"START_PAGE={start_page.strip()}\n",
         "GLOSSARY.md": f"# {name}: the app's own words\n\nAdded by the clarifier as the test author explains them.\n",
         "app-map/README.md": "The pages and elements Playwright's planner saw in the app. Written by merge_app_map.py.\n",
         "specs/README.md": "Playwright plans, written by excel_to_plan.py. Do not edit by hand.\n",

@@ -1,5 +1,5 @@
 // Shared fixture for every generated test. No AI involved.
-//  - loginAs (option): the .env account key of the case's "Login as" column, e.g. EMPLOYEE_TEST_ACCOUNT.
+//  - loginAs (option): the account key of the case's "Login as" column, e.g. EMPLOYEE_TEST_ACCOUNT.
 //    The fixture logs in once per account and run (tests/login.ts), keeps the browser session in
 //    runs/<run-id>/auth/<account>.json, and every test of that account starts from it. Passwords never
 //    leave process.env.
@@ -18,7 +18,7 @@ const masks: string[] = JSON.parse(process.env.UAT_SCREEN_MASKS ?? '[]');
 // Switched off in config/profile.yaml -> scripts/run_tests.py sets these to 0
 const shotsOn = process.env.UAT_SHOTS !== '0';
 const consoleOn = process.env.UAT_CONSOLE !== '0';
-// A saved session older than this is logged in again (minutes). Set UAT_SESSION_MAX_AGE_MIN in .env.
+// A saved session older than this is logged in again (minutes). Set UAT_SESSION_MAX_AGE_MIN in the environment.
 const sessionMaxAgeMs = Number(process.env.UAT_SESSION_MAX_AGE_MIN ?? 30) * 60_000;
 
 type Options = {
@@ -45,9 +45,9 @@ export const test = base.extend<Options & Fixtures>({
   storageState: async ({ loginAs, browser }, use) => {
     const account = loginAs || process.env.UAT_LOGIN_AS || '';
     if (!account) return use(undefined);
-    if (!/^[A-Z0-9_]+$/.test(account)) throw new Error(`loginAs must be an .env account key like EMPLOYEE_TEST_ACCOUNT, not "${account}"`);
+    if (!/^[A-Z0-9_]+$/.test(account)) throw new Error(`loginAs must be an account key like EMPLOYEE_TEST_ACCOUNT, not "${account}"`);
     // An account that cannot log in by form (MFA, certificate sign-in to Microsoft Entra ID) can point
-    // <ACCOUNT>_STORAGE_STATE in .env at a session file saved by its own sign-in tool, for example
+    // <ACCOUNT>_STORAGE_STATE in the environment at a session file saved by its own sign-in tool, for example
     // `npm run auth:headful` in microsoft/power-platform-playwright-samples. That session is used as it is.
     const external = process.env[`${account}_STORAGE_STATE`];
     if (external) {
@@ -59,7 +59,7 @@ export const test = base.extend<Options & Fixtures>({
     if (!fresh) {
       const user = process.env[`${account}_USER`];
       const password = process.env[`${account}_PASSWORD`];
-      if (!user || !password) throw new Error(`.env has no ${account}_USER / ${account}_PASSWORD`);
+      if (!user || !password) throw new Error(`No ${account}_USER / ${account}_PASSWORD in the environment (UAT Studio: Set up, Test accounts)`);
       const page = await browser.newPage({ storageState: undefined });
       try {
         await page.goto(process.env.START_PAGE ?? '/');

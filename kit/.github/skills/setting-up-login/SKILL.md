@@ -7,7 +7,7 @@ description: Writes tests/login.ts once per app (how to log in, how to tell logi
 
 Login is **code, not an agent at run time**: `tests/login.ts` is written once per app; the `loginAs`
 fixture in `tests/fixtures.ts` calls it, saves the browser session per account in
-`runs/<run-id>/auth/`, and every test of that account starts logged in. Passwords stay in `.env`.
+`runs/<run-id>/auth/`, and every test of that account starts logged in. Passwords stay in UAT Studio and reach the tests only as environment variables.
 
 ## 1. Look, read, then ask only what is left (uat-login-setup agent)
 
@@ -21,7 +21,7 @@ From the page and the cases decide the login pattern (`references/login-patterns
 a "choose your organisation" screen, or cases that contradict each other. At most 3 questions, each with
 a recommended answer and the reason. If nothing is unknown, ask nothing. Never ask about files or whether
 account values are filled in: UAT Studio passes that status in (in VS Code, the `*_USER=` names in
-`.env.example` list the accounts); a missing value means telling the person where to fill it in, and stopping.
+UAT Studio lists the accounts); a missing value means telling the person where to fill it in, and stopping.
 
 ## 2. Map the login page
 
@@ -34,7 +34,7 @@ and run `merge_app_map.py <folder> login`. The app map now has a page `login` wi
 
 Only `login(page, user, password)` and `expectLoggedIn(page)`. Elements by `getByRole`/`getByLabel`
 with the names from the app map. `if` is allowed here (banner present or not). Never log values.
-Never write a value from `.env` into the file. Patterns the kit does not support: say so and stop.
+Never write an account value into the file. Patterns the kit does not support: say so and stop.
 
 ## 4. Prove it
 

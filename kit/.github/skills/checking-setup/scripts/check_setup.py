@@ -31,15 +31,6 @@ def report(status, item, fix=""):
     lines.append(f"{status:<8} {item}" + (f"  -> {fix}" if fix else ""))
 
 
-def read_env(path):
-    env = {}
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            m = re.match(r"^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$", line)
-            if m:
-                env[m.group(1)] = m.group(2).strip('"').strip("'")
-    return env
-
 
 def account_key(name):
     return re.sub(r"[^A-Z0-9]+", "_", name.upper()).strip("_")
@@ -114,11 +105,11 @@ def main():
     report("OK" if ok else "BROKEN", "Guard hook (.github/hooks/guard.json -> scripts/guard_hook.py)",
            "" if ok else "restore the hook files from the repository")
 
-    # Test environment: from .env, or from the environment (UAT Studio passes its own values; no file needed)
-    env = {**read_env(ROOT / ".env"), **{k: v for k, v in os.environ.items() if v}}
+    # Test environment: UAT Studio passes the start page and the accounts as environment variables (no file)
+    env = {k: v for k, v in os.environ.items() if v}
     start = env.get("START_PAGE", "")
     if not start:
-        report("MISSING", "START_PAGE", "set the address of the app under test (UAT Studio: Set up; else in .env)")
+        report("MISSING", "START_PAGE", "set the address of the app under test (UAT Studio: Set up; else an environment variable)")
     allowed = yaml.safe_load((ROOT / "config" / "guardrails.yaml").read_text(encoding="utf-8"))["allowed_origins"]
 
     accounts, pages = set(), {start} if start else set()
@@ -130,7 +121,7 @@ def main():
         for part in ("USER", "PASSWORD"):
             key = f"{acc}_{part}"
             report("OK" if env.get(key) else "MISSING", f"account value {key}",
-                   "" if env.get(key) else "fill it in (UAT Studio: Set up; else in .env), never in the Excel")
+                   "" if env.get(key) else "fill it in (UAT Studio: Set up; else an environment variable), never in the Excel")
     if accounts:
         login_ts = (ROOT / "tests" / "login.ts").read_text(encoding="utf-8") if (ROOT / "tests" / "login.ts").exists() else ""
         written = login_ts and "write login() for your app" not in login_ts

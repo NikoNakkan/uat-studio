@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def account_key(name):
-    """'Employee test account' -> 'EMPLOYEE_TEST_ACCOUNT' (the prefix used in .env)."""
+    """'Employee test account' -> 'EMPLOYEE_TEST_ACCOUNT' (the prefix of its environment variables)."""
     return re.sub(r"[^A-Z0-9]+", "_", str(name or "").upper()).strip("_")
 
 

@@ -20,7 +20,7 @@ from openpyxl import Workbook
 
 REPO = Path(__file__).resolve().parents[1]
 COPY = ["config", "scripts", ".github", "templates", "examples", "app-map", "specs",
-        ".env.example", "AGENTS.md", "GLOSSARY.md", "package.json", "playwright.config.ts"]
+        "AGENTS.md", "GLOSSARY.md", "package.json", "playwright.config.ts"]
 COPY_TESTS = ["fixtures.ts", "login.ts", "login.check.spec.ts", "seed.spec.ts"]
 START = "http://localhost:4173"
 

@@ -39,7 +39,7 @@ def _write_env(key: str, value: str) -> None:
 @router.put("/env")
 def put_env(body: EnvIn):
     """Save one private value. Passwords are never sent back. A saved user name is, so Setup can show who it is."""
-    names = accounts.env_example_accounts()
+    names = {a['name'] for a in accounts.accounts_overview(accounts.latest_cases()[1])}
     allowed = {"START_PAGE", "UAT_SESSION_MAX_AGE_MIN"} | {f"{a}_{s}" for a in names for s in ("USER", "PASSWORD")}
     if body.key not in allowed:
         raise HTTPException(400, "Unknown setting")
@@ -58,7 +58,7 @@ def _known_account(name: str) -> str:
         raise HTTPException(400, "Unknown account")
     # the accounts the Excel names in its "Login as" column can be filled in without adding them first
     named = {accounts.account_key(c["login_as"]) for c in accounts.latest_cases()[1] if c.get("login_as")}
-    known = set(accounts.env_example_accounts()) | {k[:-5] for k in accounts.env_values() if k.endswith("_USER")} | named
+    known = set(accounts.added_accounts()) | {k[:-5] for k in accounts.env_values() if k.endswith("_USER")} | named
     if key not in known:
         raise HTTPException(400, "Unknown account. Add the person first.")
     return key
@@ -99,10 +99,5 @@ def add_account(body: AccountIn):
     key = re.sub(r"[^A-Z0-9]+", "_", body.label.upper()).strip("_")
     if not key:
         raise HTTPException(400, "Give the account a name, e.g. Manager test account")
-    p = kit.KIT_DIR / ".env.example"
-    text = p.read_text(encoding="utf-8") if p.exists() else ""
-    created = f"{key}_USER=" not in text
-    if created:
-        text = text.rstrip() + f"\n{key}_USER=\n{key}_PASSWORD=\n"
-        p.write_text(text + ("\n" if not text.endswith("\n") else ""), encoding="utf-8")
+    created = vault.add_account(projects.current_id(), key)
     return {"key": key, "label": accounts.account_label(key), "created": created}

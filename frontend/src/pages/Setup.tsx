@@ -29,7 +29,7 @@ export function SetupPage() {
   const accounts = env.data?.accounts ?? [];
   const accountsOk = accounts.length > 0 && accounts.every(a => a.user_set && a.password_set);
   const loginWaiting = (open.data ?? []).some(i => i.channel === 'app');
-  const envSaved = () => qc.invalidateQueries({ queryKey: ['env'] });
+  const envSaved = () => { qc.invalidateQueries({ queryKey: ['env'] }); check.refetch(); };
 
   const steps: StepDef[] = [
     {
@@ -39,14 +39,22 @@ export function SetupPage() {
       body: settings.data ? <AiProviderCard settings={settings.data} /> : null,
     },
     {
-      id: 'machine', title: 'This machine', state: stateOf(machineOk, check.isPending),
-      summary: check.isPending ? 'Checking…' : machineOk ? 'Node.js, Playwright, Python and the kit are ready.' : 'Something is missing. Open to fix it.',
-      body: <Machine check={check} />,
-    },
-    {
-      id: 'app', title: 'App under test', state: stateOf(!!env.data?.start_page, env.isPending),
-      summary: env.data?.start_page || 'Where the tests start, and the only sites the browser may open.',
-      body: env.isError ? <Notice>{errorText(env.error)}</Notice> : env.data ? <AppUnderTest env={env.data} onSaved={envSaved} /> : <Loading />,
+      // Where the tests start, then this machine (its check needs the start page): one step.
+      id: 'app', title: 'App under test', state: stateOf(!!env.data?.start_page && machineOk, env.isPending || check.isPending),
+      summary: [env.data?.start_page || 'Where the tests start, and the only sites the browser may open',
+                check.isPending ? 'checking this machine…' : machineOk ? 'this machine is ready' : 'this machine needs fixing'].join(' · '),
+      body: env.isError ? <Notice>{errorText(env.error)}</Notice> : env.data ? (
+        <div className="grid gap-5">
+          <section className="grid gap-2">
+            <h3 className="font-semibold">Where the tests start</h3>
+            <AppUnderTest env={env.data} onSaved={envSaved} />
+          </section>
+          <section className="grid gap-2 border-t border-line pt-4">
+            <h3 className="font-semibold">This machine</h3>
+            <Machine check={check} />
+          </section>
+        </div>
+      ) : <Loading />,
     },
     {
       // How the tests log in, then the accounts it logs in as: one step.

@@ -9,7 +9,7 @@ columns:
   group:            { header: "Group",            required: true }
   title:            { header: "Title",            required: true }
   start_page:       { header: "Start page",       required: true, type: url }
-  login_as:         { header: "Login as",         required: false, must_exist_in: .env.example }
+  login_as:         { header: "Login as",         required: false }   # the account's password is set in UAT Studio, never in the Excel
   preconditions:    { header: "Preconditions",    required: false }
   steps:            { header: "Steps",            required: true, format: numbered_lines }
   expected_results: { header: "Expected results", required: true, format: step_numbered_lines }

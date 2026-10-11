@@ -9,6 +9,6 @@ tools: ['read', 'execute/runInTerminal', 'execute/getTerminalOutput', 'vscode/as
    requirement: OK, MISSING, BROKEN or WARN.
 2. For each MISSING or BROKEN item with a command, show the exact command and ask before running it.
    Installing software changes this machine: one yes per command.
-3. Never open, read or edit .env. Tell the person which values are missing; they fill them in.
+3. Never ask for or handle passwords. Tell the person which values are missing; they fill them in (UAT Studio: Set up).
 4. Run the check again. Report what is still not OK. If anything required is missing, say that the
    run cannot start and stop.

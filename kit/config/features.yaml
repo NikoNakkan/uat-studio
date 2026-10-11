@@ -115,11 +115,10 @@ items:
     decisions: [23]
 
   - id: test-accounts
-    name: Test accounts (.env)
+    name: Test accounts
     kind: part
     area: Across all stages
-    what: Test accounts in a private .env file, named in plain words in the Excel's "Login as" column. Passwords never reach the Excel or the AI.
-    files: [.env.example]
+    what: Test accounts named in plain words in the Excel's "Login as" column; their passwords are kept by UAT Studio and reach the tests only as environment variables. Passwords never reach the Excel or the AI.
     decisions: [23]
 
   - id: login-at-run-time

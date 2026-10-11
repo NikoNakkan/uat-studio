@@ -1,9 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 
-// Test accounts and START_PAGE live in .env (never committed, never read by agents).
+// START_PAGE and the test accounts come from the environment: UAT Studio hands them to the tests while they run
+// (never a file in the project, never read by agents). On your own, set them in the shell before running.
 // process.loadEnvFile needs Node 20.12+ (check_setup.py checks this).
-try { process.loadEnvFile('.env'); } catch { /* no .env: values must come from the environment */ }
 
 // scripts/run_tests.py sets these so every run keeps its own evidence in runs/<run-id>/.
 // Without them (Playwright's agents, npm test by hand) everything goes to runs/current/, a scratch
@@ -19,7 +19,7 @@ export default defineConfig({
   workers: 1,       // UAT environments are shared: one test at a time until test data isolation (F1) exists
   retries: 0,       // a retry would hide an unreliable test; flakiness is checked on purpose (decision 30)
   forbidOnly: true,
-  // UAT environments are often slow. Both can be raised in .env without touching this file.
+  // UAT environments are often slow. Both can be raised with environment variables without touching this file.
   timeout: ms('UAT_TEST_TIMEOUT_MS', 60_000),
   expect: { timeout: ms('UAT_EXPECT_TIMEOUT_MS', 10_000) },
   reporter: [

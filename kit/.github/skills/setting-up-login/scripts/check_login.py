@@ -1,14 +1,14 @@
 """Prove that tests/login.ts logs each test account in (F2). No secret is ever printed.
 
 Usage:
-  python check_login.py --all                       every account in .env.example
+  python check_login.py --all                       every account set in the environment (<KEY>_USER)
   python check_login.py --account EMPLOYEE_TEST_ACCOUNT [--account ...]
   python check_login.py --run runs/<run-id>         the accounts the run's cases name
   add --fresh to ignore saved sessions and log in again
 
 For each account it runs tests/login.check.spec.ts once with UAT_LOGIN_AS=<account>; the loginAs
 fixture logs in through tests/login.ts and expectLoggedIn() must pass. Output per account: OK or
-FAIL with the first error line. Any value from .env that appears in the error is replaced by ***.
+FAIL with the first error line. Any account value (from the environment) that appears in the error is replaced by ***.
 Exit 0 = every account logged in, 1 = at least one did not, 2 = nothing to check or not set up.
 """
 import argparse
@@ -26,25 +26,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from common import account_key  # noqa: E402
 
 
-def accounts_in_example():
-    example = ROOT / ".env.example"
-    return re.findall(r"^([A-Z0-9_]+)_USER=", example.read_text(encoding="utf-8"), re.M) if example.exists() else []
+def accounts_in_environment():
+    return sorted(k[:-5] for k, v in os.environ.items() if k.endswith("_USER") and v and re.fullmatch(r"[A-Z0-9_]+_USER", k))
 
 
 def env_values():
-    """Account values (.env and the environment), used only to scrub them from output. Never printed or returned."""
-    values = []
-    env_file = ROOT / ".env"
-    if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            m = re.match(r"^\s*[A-Z0-9_]+\s*=\s*(.+?)\s*$", line)
-            if m:
-                v = m.group(1).strip('"').strip("'")
-                if len(v) >= 3 and not v.startswith("http"):
-                    values.append(v)
-    # A host such as UAT Studio passes the accounts as environment variables instead of a .env file.
-    values += [v for k, v in os.environ.items() if k.endswith(("_USER", "_PASSWORD")) and len(v) >= 3]
-    return values
+    """Account values from the environment, used only to scrub them from output. Never printed or returned."""
+    return [v for k, v in os.environ.items() if k.endswith(("_USER", "_PASSWORD")) and len(v) >= 3]
 
 
 def scrub(text, secrets):
@@ -63,14 +51,14 @@ def main():
 
     accounts = list(args.account)
     if args.all:
-        accounts += accounts_in_example()
+        accounts += accounts_in_environment()
     if args.run:
         run = Path(args.run) if Path(args.run).is_absolute() else ROOT / args.run
         cases = json.loads((run / "cases.json").read_text(encoding="utf-8"))
         accounts += [account_key(c["login_as"]) for c in cases if c.get("login_as")]
     accounts = list(dict.fromkeys(a for a in accounts if a))
     if not accounts:
-        print("No account to check (no 'Login as' in the cases, nothing in .env.example).")
+        print("No account to check (no 'Login as' in the cases, no <KEY>_USER in the environment).")
         return 2
     login_ts = ROOT / "tests" / "login.ts"
     if not login_ts.exists() or "write login() for your app" in login_ts.read_text(encoding="utf-8"):

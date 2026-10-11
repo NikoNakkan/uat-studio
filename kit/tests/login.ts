@@ -5,7 +5,7 @@
 // test.use({ loginAs: 'EMPLOYEE_TEST_ACCOUNT' }) and no fresh session is cached for that account.
 //
 // Rules:
-//  - `user` and `password` come from .env through the fixture. Never log, print or attach them.
+//  - `user` and `password` come from the environment through the fixture (UAT Studio). Never log, print or attach them.
 //  - Element names come from the app map (role + visible name), exactly as the planner saw them.
 //  - expectLoggedIn() must check something that is only on screen after a successful login.
 //  - Supported login shapes and what to do with the others: .github/skills/setting-up-login/references/login-patterns.md
