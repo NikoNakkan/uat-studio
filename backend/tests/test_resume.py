@@ -71,3 +71,30 @@ def test_retrying_a_stage_redoes_the_stages_after_it(client, kit_dir):
     assert after[ids[run_stage + 1]]["status"] == "skipped"          # switched off: stays off
     assert after[ids[run_stage + 2]]["status"] == "started"          # after it: done again
     assert client.post("/api/runs/2026-01-03-0000/retry", json={"stage": "nope"}).status_code == 400
+
+
+def test_redo_signoff_clears_the_seal_and_keeps_the_old_signoff(client, kit_dir):
+    import json
+
+    from app import kit
+    from app.engine import engine
+
+    run = kit_dir / "runs" / "2026-01-04-0000"
+    run.mkdir(parents=True)
+    stages = {s["id"]: {"status": "done"} for s in kit.workflow()["stages"]}
+    (run / "progress.json").write_text(json.dumps({"stages": stages, "tests": {}}), encoding="utf-8")
+    decisions = {"decisions": {"Billing": {"decision": "PASS", "by": "nikos"}}, "complete": True}
+    (run / "signoff.json").write_text(json.dumps(decisions), encoding="utf-8")
+    (run / "manifest.json").write_text("{}", encoding="utf-8")
+    (run / "results.xlsx").write_bytes(b"x")
+    started = engine.start
+    engine.start = lambda run_id: None
+    try:
+        r = client.post("/api/runs/2026-01-04-0000/signoff/redo").json()
+    finally:
+        engine.start = started
+    assert r["running"] and r["kept_in"].startswith("earlier-signoffs/")
+    assert not any((run / f).exists() for f in ("manifest.json", "signoff.json", "results.xlsx"))
+    assert json.loads((run / r["kept_in"] / "signoff.json").read_text(encoding="utf-8")) == decisions
+    assert kit.read_json(run / "progress.json")["stages"]["signoff"]["status"] == "started"
+    assert not next(x for x in client.get("/api/runs").json() if x["id"] == "2026-01-04-0000")["sealed"]

@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import accounts, costs, kit
+from .. import accounts, costs, kit, signoff_reset
 from ..engine import engine
 from ..events import bus
 from ..interactions import interactions
@@ -201,6 +201,8 @@ async def retry_stage(run_id: str, body: RetryIn):
         raise HTTPException(400, f"No stage {body.stage}.")
     stages = (kit.read_json(p / "progress.json", {}) or {}).get("stages", {})
     later = [s for s in ids[ids.index(body.stage) + 1:] if stages.get(s, {}).get("status") not in (None, "skipped")]
+    if "signoff" in (body.stage, *later):
+        signoff_reset.archive(p)                # a sealed run refuses new results; the old sign-off is kept aside
     for sid, note in [(body.stage, "retried by the person"), *((s, f"to do again after retrying {body.stage}") for s in later)]:
         raise_on_error(await kit.run_script("progress", "stage", f"runs/{run_id}", sid, "started", "--note", note))
     Ctx(run_id).mark_retried(body.stage)

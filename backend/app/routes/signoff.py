@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from .. import kit
+from .. import kit, signoff_reset
 from ..engine import engine
 from ..interactions import interactions
 from .common import raise_on_error, run_or_404
@@ -66,6 +66,20 @@ async def signoff_complete(run_id: str):
     elif not engine.is_running(run_id):
         engine.start(run_id)                      # resumes the sign-off stage, which writes the results
     return {"output": r.output}
+
+
+@router.post("/runs/{run_id}/signoff/redo")
+async def redo_signoff(run_id: str):
+    """Sign off again from scratch: every decision, manual result and the seal are cleared (kept in the run's
+    earlier-signoffs folder), then the sign-off stage runs again and asks the person."""
+    p = run_or_404(run_id)
+    if engine.is_running(run_id):
+        raise HTTPException(409, "The run is running. Stop it first.")
+    kept = signoff_reset.archive(p)
+    raise_on_error(await kit.run_script("progress", "stage", f"runs/{run_id}", "signoff", "started",
+                                        "--note", "sign-off done again by the person"))
+    engine.start(run_id)
+    return {"running": True, "kept_in": kept}
 
 
 @router.get("/runs/{run_id}/clarified.xlsx")
