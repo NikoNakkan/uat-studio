@@ -2,7 +2,7 @@
 import time
 
 from app import kit, pw_agents
-from app.api import login_task
+from app.routes.setup import login_task
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
