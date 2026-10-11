@@ -61,8 +61,13 @@ class Settings(BaseModel):
             "max_turns": self.max_turns,
             "max_output_tokens": self.max_output_tokens,
             "show_agent_browser": self.show_agent_browser,
-            "kit_dir": str(KIT_DIR),
+            "kit_dir": str(_project_dir()),
         }
+
+
+def _project_dir() -> Path:
+    from .projects import current_dir  # projects imports this module: import at call time
+    return current_dir()
 
 
 def load_settings() -> Settings:

@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import contextvars
-import importlib
 import json
 import os
 import signal
@@ -21,7 +20,19 @@ from pathlib import Path
 
 import yaml
 
-from .settings import KIT_DIR
+from . import projects
+
+
+def kit_dir() -> Path:
+    """The kit folder of the current project (see projects.py)."""
+    return projects.current_dir()
+
+
+def __getattr__(name: str):
+    # kit.KIT_DIR is read at the moment it is used, so it is always the current request's (or run's) project.
+    if name == "KIT_DIR":
+        return kit_dir()
+    raise AttributeError(name)
 
 PY = sys.executable
 SCRIPTS = {
@@ -74,8 +85,13 @@ _stop_gen: dict[str, int] = {}
 _owned_lock = threading.Lock()
 
 
+def _owner_key(name: str) -> str:
+    """Owners are per project: "app" (setup work) exists in every project, and Stop must end only its own."""
+    return f"{projects.current_id()}|{name}"
+
+
 def push_script_owner(name: str):
-    return _owner.set(name)
+    return _owner.set(_owner_key(name))
 
 
 def pop_script_owner(token) -> None:
@@ -120,6 +136,7 @@ def _untrack(proc: subprocess.Popen) -> None:
 
 def kill_owned(owner: str) -> int:
     """End every command started for this owner, including children. Returns how many were alive."""
+    owner = _owner_key(owner)
     with _owned_lock:
         _stop_gen[owner] = _stop_gen.get(owner, 0) + 1
         procs = list(_owned.get(owner, ()))
@@ -156,7 +173,7 @@ def _kill_tree(proc: subprocess.Popen) -> bool:
 
 def _popen_kwargs():
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-    kw = dict(cwd=KIT_DIR, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    kw = dict(cwd=kit_dir(), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
               text=True, encoding="utf-8", errors="replace", shell=(os.name == "nt"))
     if os.name == "nt":
         kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -223,7 +240,7 @@ async def run_command(cmd: list[str], timeout: float | None = 1800,
 # ---------------- files ----------------
 
 def runs_dir() -> Path:
-    return KIT_DIR / "runs"
+    return kit_dir() / "runs"
 
 
 def run_path(run_id: str) -> Path:
@@ -256,7 +273,7 @@ def write_json(path: Path, data) -> None:
 
 def read_yaml(rel: str, default=None):
     try:
-        return yaml.safe_load((KIT_DIR / rel).read_text(encoding="utf-8"))
+        return yaml.safe_load((kit_dir() / rel).read_text(encoding="utf-8"))
     except OSError:
         return default
 
@@ -267,10 +284,10 @@ def workflow() -> dict:
 
 def safe_kit_path(rel: str) -> Path:
     """A path inside the kit that is not a secret and not a dependency folder."""
-    p = (KIT_DIR / rel).resolve()
-    if KIT_DIR.resolve() not in p.parents and p != KIT_DIR.resolve():
+    p = (kit_dir() / rel).resolve()
+    if kit_dir().resolve() not in p.parents and p != kit_dir().resolve():
         raise ValueError("Outside the kit")
-    parts = {x.lower() for x in p.relative_to(KIT_DIR.resolve()).parts}
+    parts = {x.lower() for x in p.relative_to(kit_dir().resolve()).parts}
     if p.name.lower() == ".env" or "node_modules" in parts or ".git" in parts:
         raise ValueError("Not readable")
     return p
@@ -279,35 +296,37 @@ def safe_kit_path(rel: str) -> Path:
 # ---------------- feature switches (the kit's own module) ----------------
 
 def features_module():
-    """Import scripts/features.py fresh, so profile changes are always seen."""
-    scripts = str(KIT_DIR / "scripts")
-    if scripts not in sys.path:
-        sys.path.insert(0, scripts)
-    import features  # type: ignore
-    importlib.reload(features)
-    return features
+    """The current project's scripts/features.py, loaded fresh so profile changes are always seen. Loaded by
+    file path, not by module name: with several projects, "import features" would keep the first one's."""
+    import importlib.util
+    path = kit_dir() / "scripts" / "features.py"
+    spec = importlib.util.spec_from_file_location(f"uat_features_{abs(hash(str(path)))}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-_switches: dict = {"key": None, "ids": set(), "on": set()}
+_switches: dict = {}          # kit folder -> {"key": (mtimes), "ids": set, "on": set}
 
 
 def _mtime(rel: str) -> float:
     try:
-        return (KIT_DIR / rel).stat().st_mtime
+        return (kit_dir() / rel).stat().st_mtime
     except OSError:
         return 0.0
 
 
 def is_on(feature_id: str) -> bool:
     """Whether a part is switched on. Parsing the feature map took about 0.45 s, and a run page asked once per
-    stage on every refresh (5 s per refresh, queuing every other request), so the answer is kept until
-    config/features.yaml or config/profile.yaml changes on disk."""
+    stage on every refresh (5 s per refresh, queuing every other request), so the answer is kept per project
+    until its config/features.yaml or config/profile.yaml changes on disk."""
     key = (_mtime("config/features.yaml"), _mtime("config/profile.yaml"))
-    if _switches["key"] != key:
+    cache = _switches.setdefault(str(kit_dir()), {"key": None})
+    if cache["key"] != key:
         f = features_module()
         items = f.load_items()
-        _switches.update(key=key, ids=set(items), on=set(f.effective_on(items, f.load_off())))
-    return feature_id not in _switches["ids"] or feature_id in _switches["on"]
+        cache.update(key=key, ids=set(items), on=set(f.effective_on(items, f.load_off())))
+    return feature_id not in cache["ids"] or feature_id in cache["on"]
 
 
 def guardrails() -> dict:
@@ -316,7 +335,7 @@ def guardrails() -> dict:
 
 def env_example_accounts() -> list[str]:
     import re
-    p = KIT_DIR / ".env.example"
+    p = kit_dir() / ".env.example"
     if not p.exists():
         return []
     return re.findall(r"^([A-Z0-9_]+)_USER=", p.read_text(encoding="utf-8"), re.M)
@@ -326,7 +345,7 @@ def env_values() -> dict[str, str]:
     """The private .env file as a dict. Only the app reads it; agents never see these values."""
     import re
     out = {}
-    p = KIT_DIR / ".env"
+    p = kit_dir() / ".env"
     if p.exists():
         for line in p.read_text(encoding="utf-8").splitlines():
             m = re.match(r"^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$", line)

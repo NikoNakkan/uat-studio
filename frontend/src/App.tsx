@@ -2,6 +2,7 @@ import { Link, NavLink, Route, Routes, useMatch } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Interaction } from './api';
 import { LiveProvider, LiveRail } from './components/Live';
+import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { RunsPage } from './pages/Runs';
 import { RunPage } from './pages/Run';
 import { SetupPage } from './pages/Setup';
@@ -34,6 +35,7 @@ export function App() {
           <div><div className="font-semibold leading-tight">UAT Studio</div>
             <div className="text-xs text-muted leading-tight">Excel in · evidence out</div></div>
         </div>
+        <ProjectSwitcher />
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4" aria-label="Pages">
           {NAV.map(n => (
             <NavLink key={n.to} to={n.to} end={n.end}

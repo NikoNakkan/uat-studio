@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import kit
+from . import kit, projects
 from .events import bus
 
 
@@ -25,6 +25,7 @@ class Interaction:
     payload: dict[str, Any]
     created: float = field(default_factory=time.time)
     future: asyncio.Future | None = None
+    project: str = field(default_factory=lambda: projects.current_id())   # whose question it is
 
     def public(self) -> dict:
         return {"id": self.id, "channel": self.channel, "kind": self.kind, "title": self.title,
@@ -40,7 +41,7 @@ class Interactions:
             return
         try:
             kit.write_json(kit.run_path(channel) / "studio-pending.json",
-                           [i.public() for i in self._open.values() if i.channel == channel])
+                           [i.public() for i in self._mine() if i.channel == channel])
         except (OSError, ValueError):
             pass
 
@@ -66,13 +67,18 @@ class Interactions:
         bus.emit(item.channel, "answered", interaction_id=item.id, kind=item.kind, response=response)
         return item
 
+    def _mine(self) -> list[Interaction]:
+        """Open interactions of the current project only."""
+        pid = projects.current_id()
+        return [i for i in self._open.values() if i.project == pid]
+
     def cancel_channel(self, channel: str) -> None:
-        for item in list(self._open.values()):
+        for item in self._mine():
             if item.channel == channel and item.future and not item.future.done():
                 item.future.cancel()
 
     def list(self, channel: str | None = None) -> list[dict]:
-        return [i.public() for i in self._open.values() if channel is None or i.channel == channel]
+        return [i.public() for i in self._mine() if channel is None or i.channel == channel]
 
 
 interactions = Interactions()

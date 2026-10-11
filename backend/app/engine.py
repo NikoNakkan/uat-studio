@@ -12,7 +12,7 @@ import asyncio
 import re
 from pathlib import Path
 
-from . import agents, kit, pw_agents
+from . import agents, kit, projects, pw_agents
 from .events import bus
 from .interactions import interactions
 from .llm import AgentOutcome, MissingApiKey
@@ -55,32 +55,43 @@ class Engine:
     def __init__(self) -> None:
         self.tasks: dict[str, asyncio.Task] = {}
 
+    @staticmethod
+    def _key(run_id: str) -> str:
+        """Runs are tracked per project: two projects may even have a run of the same name."""
+        return f"{projects.current_id()}/{run_id}"
+
     def running(self) -> list[str]:
-        return [r for r, t in self.tasks.items() if not t.done()]
+        """The current project's running runs."""
+        prefix = f"{projects.current_id()}/"
+        return [k[len(prefix):] for k, t in self.tasks.items() if k.startswith(prefix) and not t.done()]
 
     def is_running(self, run_id: str) -> bool:
-        t = self.tasks.get(run_id)
+        t = self.tasks.get(self._key(run_id))
         return bool(t and not t.done())
 
     def start(self, run_id: str) -> None:
         if self.is_running(run_id):
             return
         busy = self.running()
-        if busy:
+        if busy:      # per project: each project tests its own system, which one run at a time shares
             raise RuntimeError(f"Run {busy[0]} is running. The UAT system is shared, so one run at a time.")
-        self.tasks[run_id] = asyncio.create_task(self._run(run_id))
+        # The task copies the current context, so the run keeps this project even when the person switches.
+        self.tasks[self._key(run_id)] = asyncio.create_task(self._run(run_id))
+
+    def forget(self, run_id: str) -> None:
+        self.tasks.pop(self._key(run_id), None)
 
     def stop(self, run_id: str) -> None:
         interactions.cancel_channel(run_id)
         kit.kill_owned(run_id)
-        t = self.tasks.get(run_id)
+        t = self.tasks.get(self._key(run_id))
         if t and not t.done():
             t.cancel()
 
     async def stop_and_wait(self, run_id: str, timeout: float = 15) -> bool:
         """Stops the run and waits until its task has ended. False if it is still ending after `timeout`."""
         self.stop(run_id)
-        t = self.tasks.get(run_id)
+        t = self.tasks.get(self._key(run_id))
         if t and not t.done():
             await asyncio.wait({t}, timeout=timeout)
         return not self.is_running(run_id)
