@@ -43,8 +43,8 @@ def test_setup_check_reports_each_requirement(kit):
     run = kit.intake("runs/cases.xlsx")
     r = kit.run(CHECK_SETUP, "--run", run)
     assert r.returncode in (0, 1)
-    for text in ["MISSING  .env  -> copy .env.example to .env", "MISSING  .env: EMPLOYEE_TEST_ACCOUNT_USER",
-                 "MISSING  .env: EMPLOYEE_TEST_ACCOUNT_PASSWORD", "MISSING  tests/login.ts knows how to log in",
+    for text in ["MISSING  account value EMPLOYEE_TEST_ACCOUNT_USER",
+                 "MISSING  account value EMPLOYEE_TEST_ACCOUNT_PASSWORD", "MISSING  tests/login.ts knows how to log in",
                  "OK       Feature switches", "Result: something required is missing or broken"]:
         assert text in r.out, text
     assert r.returncode == 1
@@ -56,5 +56,16 @@ def test_setup_check_never_prints_secret_values(kit):
     kit.excel("runs/cases.xlsx", [case("TC-01", login_as="Employee test account")])
     run = kit.intake("runs/cases.xlsx")
     r = kit.run(CHECK_SETUP, "--run", run)
-    assert "OK       .env: EMPLOYEE_TEST_ACCOUNT_PASSWORD" in r.out
+    assert "OK       account value EMPLOYEE_TEST_ACCOUNT_PASSWORD" in r.out
     assert "S3cretPassw0rd" not in r.out and "emp@example.com" not in r.out
+
+
+def test_setup_check_takes_the_values_from_the_environment_without_a_env_file(kit):
+    """A host such as UAT Studio passes the start page and accounts as environment variables: no .env needed."""
+    kit.excel("runs/cases.xlsx", [case("TC-01", login_as="Employee test account")])
+    run = kit.intake("runs/cases.xlsx")
+    r = kit.run(CHECK_SETUP, "--run", run, env={"START_PAGE": "http://localhost:4173", "EMPLOYEE_TEST_ACCOUNT_USER": "emp@example.com",
+                                                 "EMPLOYEE_TEST_ACCOUNT_PASSWORD": "S3cretPassw0rd"})
+    assert "MISSING  .env" not in r.out and "MISSING  START_PAGE" not in r.out
+    assert "OK       account value EMPLOYEE_TEST_ACCOUNT_PASSWORD" in r.out
+    assert "S3cretPassw0rd" not in r.out
