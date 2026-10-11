@@ -39,3 +39,21 @@ def test_accounts_say_filled_or_missing_and_who_uses_them(client):
 def test_a_non_excel_file_is_refused(client):
     r = client.post("/api/setup/login", files={"file": ("cases.csv", b"a,b", "text/csv")})
     assert r.status_code == 400 and ".xlsx" in r.json()["detail"]
+
+
+def test_the_newer_excel_wins_and_is_named(client, kit_dir):
+    """An Excel given at login setup after a run must be the one the agent reads, shown by its own name."""
+    import os
+    import time
+    with (kit_dir / "examples" / "expense-tracker-tests.xlsx").open("rb") as f:
+        run_id = client.post("/api/runs", files={"file": ("old-run.xlsx", f)},
+                             data={"strictness": "standard", "start": "false"}).json()["id"]
+    cases = kit.runs_dir() / run_id / "cases.json"
+    cases.write_text('[{"test_id": "TC-01", "login_as": "Run account"}]', encoding="utf-8")
+    os.utime(cases, (time.time() - 60, time.time() - 60))
+    with (kit_dir / "examples" / "expense-tracker-tests.xlsx").open("rb") as f:
+        assert client.post("/api/setup/login", files={"file": ("my-cases.xlsx", f, XLSX)}).status_code == 200
+    src = client.get("/api/setup/login-source").json()
+    assert src["source"] == "login setup" and src["excel"] == "my-cases.xlsx" and src["cases"] > 0
+    client.post("/api/setup/login/stop")
+    client.delete(f"/api/runs/{run_id}")

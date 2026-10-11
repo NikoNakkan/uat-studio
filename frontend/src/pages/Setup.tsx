@@ -138,6 +138,8 @@ function Login({ running, written }: { running: boolean; written: boolean }) {
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const source = useQuery({ queryKey: ['login-source'], queryFn: () => api.get<{ source: string; excel: string; cases: number; accounts: string[] }>('/api/setup/login-source') });
   const lock = useRef(false);
   const go = async (label: string, fn: () => Promise<any>) => {
     if (lock.current) return;
@@ -152,10 +154,32 @@ function Login({ running, written }: { running: boolean; written: boolean }) {
         (which accounts log in, and what a logged-in user sees), asks only what neither tells it, writes tests/login.ts and proves every account
         logs in. From then on every test logs in through that code. The agent never sees a password.
         What it says, and every command it runs, stays in the live panel.</p>
-      <Field label="Your test cases" hint="The Excel you will test with. Without it, the agent uses the newest Excel you uploaded for a run.">
-        <input type="file" accept=".xlsx" disabled={running || !!job} onChange={e => setFile(e.target.files?.[0] ?? null)}
-          className={`${inputCls} max-w-md file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-2 file:py-1 file:text-sm file:font-medium file:text-ink`} />
-      </Field>
+      <div className="grid gap-1.5">
+        <div className="text-sm font-medium">Test cases the agent reads</div>
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface-2/40 px-3 py-2">
+          <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded bg-good/15 text-xs font-semibold text-good">XLS</span>
+          <div className="min-w-0 flex-1 text-sm">
+            {file ? <>
+              <div className="truncate font-medium">{file.name}</div>
+              <div className="text-xs text-muted">Chosen now: the agent reads this one when you start it.</div>
+            </> : source.isPending ? <div className="text-muted">Finding the Excel in use…</div>
+            : source.isError ? <div className="text-bad">Could not tell which Excel is in use ({errorText(source.error)}).</div>
+            : source.data?.source ? <>
+              <div className="truncate font-medium">{source.data.excel}</div>
+              <div className="text-xs text-muted">{source.data.cases} cases · from {source.data.source}
+                {source.data.accounts.length ? ` · accounts: ${source.data.accounts.join(', ')}` : ''}</div>
+            </> : <>
+              <div className="font-medium">No Excel yet</div>
+              <div className="text-xs text-muted">Choose the Excel you will test with: it tells the agent which accounts log in and what they see.</div>
+            </>}
+          </div>
+          <input ref={picker} type="file" accept=".xlsx" className="sr-only" tabIndex={-1} aria-hidden
+            onChange={e => setFile(e.target.files?.[0] ?? null)} />
+          <Button disabled={running || !!job} onClick={() => picker.current?.click()}>
+            {file || source.data?.source ? 'Use a different Excel…' : 'Choose Excel…'}</Button>
+          {file && <Button kind="ghost" disabled={running || !!job} onClick={() => { setFile(null); if (picker.current) picker.current.value = ''; }}>Undo</Button>}
+        </div>
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button kind="primary" busy={job === 'setup' || running} disabled={!!job || running}
           onClick={() => go('setup', () => { const form = new FormData(); if (file) form.append('file', file); return api.post('/api/setup/login', form); })}>

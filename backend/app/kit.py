@@ -368,14 +368,32 @@ def account_label(name: str) -> str:
     return " ".join([words[0].capitalize(), *(w.lower() for w in words[1:])])
 
 
-def latest_cases() -> tuple[str, list[dict]]:
-    """The newest test cases Studio has read: from the newest run, else the Excel given to login setup."""
+def cases_source() -> dict:
+    """Which test cases Studio knows best: the newer of the newest run's and the Excel given to login setup.
+    {"source": "run <id>" | "login setup" | "", "excel": file name, "file": path, "cases": [...]}."""
+    found = []
     for run_id in list_runs():
-        cases = read_json(runs_dir() / run_id / "cases.json")
+        f = runs_dir() / run_id / "cases.json"
+        cases = read_json(f)
         if cases:
-            return f"run {run_id}", cases
-    cases = read_json(runs_dir() / "setup" / "cases.json")
-    return ("the Excel given to login setup", cases) if cases else ("", [])
+            excel = (read_json(runs_dir() / run_id / "progress.json", {}) or {}).get("excel", "")
+            found.append({"source": f"run {run_id}", "excel": Path(excel).name, "file": f, "cases": cases})
+            break
+    f = runs_dir() / "setup" / "cases.json"
+    cases = read_json(f)
+    if cases:
+        name = runs_dir() / "setup" / "requirements-name.txt"
+        found.append({"source": "login setup", "file": f, "cases": cases,
+                      "excel": name.read_text(encoding="utf-8").strip() if name.exists() else "requirements.xlsx"})
+    if not found:
+        return {"source": "", "excel": "", "file": None, "cases": []}
+    return max(found, key=lambda x: x["file"].stat().st_mtime)
+
+
+def latest_cases() -> tuple[str, list[dict]]:
+    """The test cases the login agent and the account list start from (see cases_source)."""
+    s = cases_source()
+    return (f"{s['excel']} ({s['source']})" if s["source"] else ""), s["cases"]
 
 
 def accounts_overview(cases: list[dict]) -> list[dict]:

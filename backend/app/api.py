@@ -773,6 +773,7 @@ async def start_login_setup(file: UploadFile | None = File(None)):
         setup = kit.runs_dir() / "setup"
         setup.mkdir(parents=True, exist_ok=True)
         (setup / "requirements.xlsx").write_bytes(await file.read())
+        (setup / "requirements-name.txt").write_text(Path(file.filename).name, encoding="utf-8")
         r = await kit.run_script("read_excel", "runs/setup/requirements.xlsx", "runs/setup/cases.json")
         if r.code != 0:
             raise HTTPException(400, f"Could not read the Excel:\n{r.output}")
@@ -805,6 +806,14 @@ async def stop_login_setup():
     if (was_running or killed) and not still:
         bus.emit("app", "note", stage="setup-login", text="Login setup stopped.")
     return {"running": still}
+
+
+@router.get("/setup/login-source")
+def login_source():
+    """The Excel the login agent reads: its name, where it came from and how many cases it has."""
+    s = kit.cases_source()
+    return {"source": s["source"], "excel": s["excel"], "cases": len(s["cases"]),
+            "accounts": sorted({c["login_as"] for c in s["cases"] if c.get("login_as")})}
 
 
 @router.post("/setup/check-login")
