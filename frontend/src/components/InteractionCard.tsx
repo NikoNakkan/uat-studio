@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, type Interaction, type InteractionPayload } from '../api';
+import { api, type Interaction } from '../api';
 import { useAction } from '../lib/useAction';
-import { Button, Notice, Pre, inputCls } from '../ui';
+import { Button, Notice, Pre } from '../ui';
+import { Questions } from './interaction/Questions';
 
 const KIND_LABEL: Record<string, string> = {
   question: 'questions', change: 'confirm a change', guard: 'approve a browser action', repair: 'approve a repair',
@@ -24,7 +24,7 @@ export function InteractionCard({ item }: { item: Interaction }) {
   return (
     <div className="grid gap-3 p-1">
       <p className="text-sm font-medium">{item.title}: {KIND_LABEL[item.kind] ?? item.kind}</p>
-      {item.kind === 'question' && <Questions p={p} busy={busy} send={send} />}
+      {item.kind === 'question' && <Questions item={item} busy={busy} send={send} />}
       {item.kind === 'change' && (
         <div className="grid gap-2 text-sm">
           <p>Status: <b>{p.status}</b>{p.details?.fields_changed ? ` · fields: ${p.details.fields_changed.join(', ')}` : ''}
@@ -68,25 +68,5 @@ function Options({ options = [], recommended, busy, send }: { options?: string[]
           {busy === o ? 'Sending…' : `${o}${o === recommended ? ' (suggested)' : ''}`}</Button>
       ))}
     </div>
-  );
-}
-
-function Questions({ p, busy, send }: { p: InteractionPayload; busy: string | null; send: (r: unknown) => void }) {
-  const qs = p.questions ?? [];
-  const [answers, setAnswers] = useState<Record<string, string>>(() => Object.fromEntries(qs.map(q => [q.id, q.recommended ?? ''])));
-  return (
-    <form className="grid gap-3" onSubmit={e => { e.preventDefault(); send(answers); }}>
-      {qs.map(q => (
-        <div key={q.id} className="grid gap-1 text-sm">
-          <label htmlFor={`q-${q.id}`}><b className="tnum">{q.id}.</b> {q.test_id && /\d/.test(q.test_id) ? <span className="font-mono text-xs text-muted">{q.test_id} · </span> : null}{q.text}</label>
-          {q.recommended && <span className="text-xs text-muted">Recommended: {q.recommended}</span>}
-          <input id={`q-${q.id}`} className={inputCls} disabled={!!busy} value={answers[q.id] ?? ''} onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })} />
-        </div>
-      ))}
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" kind="primary" busy={busy === 'answers'} disabled={!!busy}>{busy === 'answers' ? 'Sending…' : 'Send answers'}</Button>
-        {p.can_defer && <Button busy={busy === '__defer__'} disabled={!!busy} onClick={() => send('__defer__')}>{busy === '__defer__' ? 'Writing…' : 'Author not available: write a questionnaire'}</Button>}
-      </div>
-    </form>
   );
 }

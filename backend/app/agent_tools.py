@@ -83,10 +83,10 @@ def read_tools(channel: str, run: Path | None, allowed_kit_files: list[str]) -> 
 def ask_person_tool(channel: str, agent: str) -> Tool:
     async def ask(a: dict) -> ToolResult:
         questions = a.get("questions") or []
+        # The question waits until it is answered; for an absent author the person exports a questionnaire
+        # from the card and imports the answers back, so the agent never writes one itself.
         answers = await interactions.ask(channel, "question", a.get("title") or f"Questions from {agent}",
-                                         agent=agent, questions=questions, can_defer=True)
-        if answers == "__defer__":
-            return ToolResult("The person is not available now. Write a questionnaire and stop.")
+                                         agent=agent, questions=questions)
         return ToolResult(json.dumps(answers, ensure_ascii=False))
     schema = obj({
         "title": STR,

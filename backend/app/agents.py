@@ -66,7 +66,6 @@ async def run_clarifier(channel: str, run: Path, case_ids: list[str], mismatches
              Tool("confirm_change", "Ask the person to confirm what happens to a changed, new or missing case "
                   "(your suggestion and a one-line explanation), and record their decision.",
                   obj({"test_id": STR, "suggestion": STR, "explanation": STR}, ["test_id", "suggestion"]), confirm_change),
-             write_run_file_tool(run, ["questionnaire.md"]),
              *read_tools(channel, run, ["GLOSSARY.md", "config/strictness.yaml", "app-map/app-map.yaml"])]
     progress = kit.read_json(run / "progress.json", {})
     planner_part = (f"\nThe planner found these mismatches in the live app; turn them into questions:\n{mismatches}\n"
@@ -77,8 +76,8 @@ async def run_clarifier(channel: str, run: Path, case_ids: list[str], mismatches
               "Then read cases.json and clarify the listed cases with ask_person, recording every answer.\n"
               + planner_part
               + "\nEnd with one line per case: clarified, or open with the reason.")
-    system = system_for("uat-clarifier", ["detecting-test-changes", "grilling-test-cases", "maintaining-glossary",
-                                          "writing-questionnaires"])
+    # No writing-questionnaires here: the person exports the open questions as a questionnaire from the card.
+    system = system_for("uat-clarifier", ["detecting-test-changes", "grilling-test-cases", "maintaining-glossary"])
     return await run_agent(channel=channel, agent="uat-clarifier", system=system, prompt=prompt, tools=tools, stage=stage)
 
 

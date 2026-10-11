@@ -60,12 +60,6 @@ class PrepareStages(StageRunner):
         r = await self.script(c, "validate", f"{c.rel}/cases.json")
         if r.code != 0:
             raise StopRun("After clarification the cases no longer pass validation (see the activity).")
-        if (c.run / "questionnaire.md").exists() and any(not x.get("clarified") for x in c.cases() if x["test_id"] in to_clarify):
-            answer = await interactions.ask(c.run_id, "proceed", "A questionnaire was written for the author",
-                                            text=(c.run / "questionnaire.md").read_text(encoding="utf-8"),
-                                            options=["answers are in: clarify again", "go on without them"])
-            if answer.startswith("answers"):
-                return await self.stage_clarify(c, mismatches)
         opened = [x["test_id"] for x in c.cases() if x.get("open_questions")]
         return "done", f"{len(to_clarify)} case(s) clarified" + (f"; open: {', '.join(opened)}" if opened else "")
 
