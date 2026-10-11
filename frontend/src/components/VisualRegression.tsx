@@ -11,7 +11,7 @@ type StepShot = {
 type TestShots = { test_id: string; title: string; group: string; result: string; recommendation: string;
   counts: Record<string, number>; steps: StepShot[] };
 type Visual = { baseline_run: string | null; ai_review: string; skipped?: string; compared: number; tests: TestShots[] };
-type Mode = 'side' | 'slider' | 'diff';
+type Mode = 'side' | 'diff';
 
 /** Decision 26/27: each test's step screenshots next to the last signed-off run, with the AI reviewer's comments. */
 export function VisualRegression({ runId, focus }: { runId: string; focus?: string | null }) {
@@ -43,7 +43,7 @@ export function VisualRegression({ runId, focus }: { runId: string; focus?: stri
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="flex items-center gap-1.5"><input type="checkbox" checked={onlyChanged} onChange={e => setOnlyChanged(e.target.checked)} /> Only tests with changes</label>
           <div role="radiogroup" aria-label="How to compare" className="flex overflow-hidden rounded-md border border-line">
-            {([['side', 'Side by side'], ['slider', 'Slider'], ['diff', 'Difference']] as [Mode, string][]).map(([m, label]) => (
+            {([['side', 'Side by side'], ['diff', 'Difference']] as [Mode, string][]).map(([m, label]) => (
               <button key={m} role="radio" aria-checked={mode === m} onClick={() => setMode(m)}
                 className={`px-2.5 py-1 ${mode === m ? 'bg-accent text-accent-ink' : 'bg-surface text-muted hover:text-ink'}`}>{label}</button>
             ))}
@@ -100,7 +100,6 @@ function StepCompare({ s, mode }: { s: StepShot; mode: Mode }) {
           {s.old && s.diff && <Shot src={s.diff} caption="Difference (changed pixels in red)" />}
         </div>
       )}
-      {effective === 'slider' && <Slider before={s.old} after={s.new} />}
       {effective === 'diff' && s.diff && <Shot src={s.diff} caption="Difference (changed pixels in red)" />}
     </div>
   );
@@ -108,28 +107,4 @@ function StepCompare({ s, mode }: { s: StepShot; mode: Mode }) {
 
 function Shot({ src, caption }: { src: string; caption: string }) {
   return <Screenshot src={kitFile(src)} caption={caption} />;
-}
-
-/** Drag across one picture: the last signed-off screen on the left, this run on the right. */
-function Slider({ before, after }: { before: string; after: string }) {
-  const [pos, setPos] = useState(50);
-  const [afterOn, setAfterOn] = useState(false);
-  const [beforeOn, setBeforeOn] = useState(false);
-  const ready = afterOn && beforeOn;
-  const note = (img: HTMLImageElement | null, set: (on: boolean) => void) => { if (img?.complete) set(true); };
-  return (
-    <div className="grid gap-1.5">
-      <div className="relative overflow-hidden rounded border border-line select-none">
-        {!ready && <div className="h-40 animate-pulse bg-surface-2" role="status" aria-label="Loading screens" />}
-        <img src={kitFile(after)} alt="This run" ref={img => note(img, setAfterOn)} onLoad={() => setAfterOn(true)} onError={() => setAfterOn(true)}
-          className={`block w-full ${ready ? '' : 'absolute h-px w-px opacity-0'}`} />
-        <img src={kitFile(before)} alt="Last signed-off" ref={img => note(img, setBeforeOn)} onLoad={() => setBeforeOn(true)} onError={() => setBeforeOn(true)}
-          className={`absolute inset-0 block w-full ${ready ? '' : 'h-px w-px opacity-0'}`}
-          style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
-        {ready && <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-accent" style={{ left: `${pos}%` }} />}
-      </div>
-      <input type="range" min={0} max={100} value={pos} onChange={e => setPos(Number(e.target.value))} aria-label="Move between last signed-off and this run" />
-      <div className="flex justify-between text-xs text-muted"><span>← Last signed-off</span><span>This run →</span></div>
-    </div>
-  );
 }
