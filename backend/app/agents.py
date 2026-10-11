@@ -12,7 +12,7 @@ import yaml
 from . import kit
 from .agent_tools import STR, ask_person_tool, obj, read_tools, script_output, system_for, write_run_file_tool
 from .interactions import interactions
-from .llm import Tool, ToolResult, run_agent
+from .llm import Tool, ToolResult, complete_json, run_agent
 from .mcp_bridge import image_result
 
 
@@ -175,7 +175,6 @@ async def run_screen_reviewer(channel: str, run: Path, stage: str):
 # ---------------- reporter (reasoning lines only; the person decides in the app) ----------------
 
 async def reporter_reasoning(channel: str, run: Path, stage: str):
-    from .llm import complete_json
     check = kit.read_json(run / "evidence-check.json", {})
     extra = {n: (run / n).read_text(encoding="utf-8")[:6000] for n in ("console.md", "diagnoses.md") if (run / n).exists()}
     system = system_for("uat-reporter", ["verifying-evidence"])

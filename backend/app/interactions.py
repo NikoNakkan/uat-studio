@@ -7,6 +7,7 @@ the run resumes from its progress file and asks again.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -25,7 +26,7 @@ class Interaction:
     payload: dict[str, Any]
     created: float = field(default_factory=time.time)
     future: asyncio.Future | None = None
-    project: str = field(default_factory=lambda: projects.current_id())   # whose question it is
+    project: str = field(default_factory=projects.current_id)   # whose question it is
 
     def public(self) -> dict:
         return {"id": self.id, "channel": self.channel, "kind": self.kind, "title": self.title,
@@ -39,11 +40,9 @@ class Interactions:
     def _mirror(self, channel: str) -> None:
         if channel == "app":
             return
-        try:
+        with contextlib.suppress(OSError, ValueError):     # a deleted run has no folder to mirror into
             kit.write_json(kit.run_path(channel) / "studio-pending.json",
                            [i.public() for i in self._mine() if i.channel == channel])
-        except (OSError, ValueError):
-            pass
 
     async def ask(self, channel: str, kind: str, title: str, **payload: Any) -> Any:
         """Create an interaction and wait for the person's answer."""

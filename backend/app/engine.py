@@ -98,7 +98,7 @@ class Engine(PrepareStages, TestStages):
         except asyncio.CancelledError:
             bus.emit(run_id, "run", status="stopped", reason="Stopped by the person.")
             raise
-        except Exception as e:  # noqa: BLE001 - shown in the app; the run can be resumed
+        except Exception as e:
             await self.mark(c, c.stage, "failed", f"Unexpected error: {e}")
             bus.emit(run_id, "run", status="stopped", reason=f"Unexpected error in {c.stage}: {e}")
 

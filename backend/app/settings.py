@@ -5,6 +5,7 @@ committed. The key is never sent back to the browser; the UI only sees whether o
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -66,7 +67,7 @@ class Settings(BaseModel):
 
 
 def _project_dir() -> Path:
-    from .projects import current_dir  # projects imports this module: import at call time
+    from .projects import current_dir  # noqa: PLC0415 - projects imports this module, so not at the top
     return current_dir()
 
 
@@ -74,7 +75,7 @@ def load_settings() -> Settings:
     if SETTINGS_FILE.exists():
         try:
             return Settings(**json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
-        except Exception:  # noqa: BLE001 - a broken file falls back to defaults
+        except Exception:
             pass
     return Settings()
 
@@ -82,7 +83,5 @@ def load_settings() -> Settings:
 def save_settings(s: Settings) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     SETTINGS_FILE.write_text(s.model_dump_json(indent=2), encoding="utf-8")
-    try:
-        os.chmod(SETTINGS_FILE, 0o600)
-    except OSError:
-        pass
+    with contextlib.suppress(OSError):     # owner-only where the file system supports it
+        SETTINGS_FILE.chmod(0o600)

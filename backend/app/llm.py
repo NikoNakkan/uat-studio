@@ -64,6 +64,41 @@ def _summary(value: Any, limit: int = 300) -> str:
     return s if len(s) <= limit else s[:limit] + "…"
 
 
+@dataclass
+class _Usage:
+    """Token use across one conversation; cache reads and writes are part of the input count."""
+    input: int = 0
+    output: int = 0
+    cache_read: int = 0
+    cache_write: int = 0
+
+    def add(self, u: Any) -> None:
+        read, write = u.cache_read_input_tokens or 0, u.cache_creation_input_tokens or 0
+        self.input += (u.input_tokens or 0) + read + write
+        self.output += u.output_tokens or 0
+        self.cache_read += read
+        self.cache_write += write
+
+
+async def _call_tool(tool: Tool | None, name: str, args: dict) -> ToolResult:
+    """Run one tool call; an unknown tool or a failing handler becomes an error the model can see and correct."""
+    if tool is None:
+        return ToolResult(f"Unknown tool {name}. Use only the tools you were given.", is_error=True)
+    try:
+        raw = await tool.handler(args)
+    except Exception as e:
+        return ToolResult(f"Tool failed: {e}", is_error=True)
+    return raw if isinstance(raw, ToolResult) else ToolResult(str(raw))
+
+
+def _result_block(call_id: str, out: ToolResult, text: str) -> dict:
+    """A tool result as the model receives it: the text (cut to MAX_TOOL_TEXT) and up to four images."""
+    blocks: list[dict] = [{"type": "text", "text": text or "(no output)"}]
+    blocks += [{"type": "image", "source": {"type": "base64", "media_type": media, "data": data}}
+               for media, data in out.images[:4]]
+    return {"type": "tool_result", "tool_use_id": call_id, "content": blocks, "is_error": out.is_error}
+
+
 async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list, tools: list[Tool],
                     stage: str = "", max_turns: int | None = None) -> AgentOutcome:
     """Run one agent conversation to its end. Raises MissingApiKey when no key is set."""
@@ -73,10 +108,13 @@ async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list
     by_name = {t.name: t for t in tools}
     api = client()
     messages: list[dict] = [{"role": "user", "content": prompt}]
-    total_in = total_out = cache_read = cache_write = 0
+    usage = _Usage()
     final_text, stopped, turns = "", "end_turn", 0
-    bus.emit(channel, "agent_start", agent=agent, stage=stage, model=model)
 
+    def say(type_: str, **data: Any) -> None:
+        bus.emit(channel, type_, agent=agent, stage=stage, **data)
+
+    say("agent_start", model=model)
     while turns < turns_left:
         turns += 1
         try:
@@ -88,56 +126,35 @@ async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list
                 system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
                 cache_control={"type": "ephemeral"},
                 tools=[t.spec() for t in tools] or [], messages=messages)
-        except Exception as e:  # noqa: BLE001 - shown to the person, run can be resumed
-            bus.emit(channel, "agent_error", agent=agent, stage=stage, text=str(e))
-            stopped = "error"
-            final_text = f"(the model call failed: {e})"
+        except Exception as e:
+            say("agent_error", text=str(e))
+            stopped, final_text = "error", f"(the model call failed: {e})"
             break
-        u = response.usage
-        read, write = u.cache_read_input_tokens or 0, u.cache_creation_input_tokens or 0
-        total_in += (u.input_tokens or 0) + read + write
-        cache_read += read
-        cache_write += write
-        total_out += u.output_tokens or 0
-        content = [b.model_dump(exclude_none=True) for b in response.content]
-        messages.append({"role": "assistant", "content": content})
+        usage.add(response.usage)
+        messages.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in response.content]})
         texts = [b.text for b in response.content if b.type == "text" and b.text.strip()]
         if texts:
             final_text = "\n".join(texts)
-            bus.emit(channel, "agent_text", agent=agent, stage=stage, text=final_text)
+            say("agent_text", text=final_text)
         calls = [b for b in response.content if b.type == "tool_use"]
         if response.stop_reason != "tool_use" or not calls:
             stopped = "max_tokens" if response.stop_reason == "max_tokens" else "end_turn"
             break
         results = []
         for call in calls:
-            tool = by_name.get(call.name)
-            bus.emit(channel, "tool_call", agent=agent, stage=stage, tool=call.name, input=_summary(call.input))
-            if tool is None:
-                out = ToolResult(f"Unknown tool {call.name}. Use only the tools you were given.", is_error=True)
-            else:
-                try:
-                    raw = await tool.handler(call.input or {})
-                    out = raw if isinstance(raw, ToolResult) else ToolResult(str(raw))
-                except Exception as e:  # noqa: BLE001 - the model sees the error and can correct
-                    out = ToolResult(f"Tool failed: {e}", is_error=True)
+            say("tool_call", tool=call.name, input=_summary(call.input))
+            out = await _call_tool(by_name.get(call.name), call.name, call.input or {})
             text = out.text if len(out.text) <= MAX_TOOL_TEXT else out.text[:MAX_TOOL_TEXT] + "\n… (cut)"
-            bus.emit(channel, "tool_result", agent=agent, stage=stage, tool=call.name,
-                     text=_summary(text, 600), is_error=out.is_error, images=len(out.images))
-            blocks: list[dict] = [{"type": "text", "text": text or "(no output)"}]
-            for media, data in out.images[:4]:
-                blocks.append({"type": "image", "source": {"type": "base64", "media_type": media, "data": data}})
-            results.append({"type": "tool_result", "tool_use_id": call.id, "content": blocks,
-                            "is_error": out.is_error})
+            say("tool_result", tool=call.name, text=_summary(text, 600), is_error=out.is_error, images=len(out.images))
+            results.append(_result_block(call.id, out, text))
         messages.append({"role": "user", "content": results})
     else:
         stopped = "max_turns"
-        bus.emit(channel, "agent_error", agent=agent, stage=stage,
-                 text=f"Stopped after {turns_left} turns (run limit). The stage can be resumed.")
+        say("agent_error", text=f"Stopped after {turns_left} turns (run limit). The stage can be resumed.")
 
-    bus.emit(channel, "agent_end", agent=agent, stage=stage, model=model, turns=turns, stopped=stopped,
-             input_tokens=total_in, output_tokens=total_out, cache_read_tokens=cache_read, cache_write_tokens=cache_write)
-    return AgentOutcome(final_text, total_in, total_out, model, turns, stopped, cache_read, cache_write)
+    say("agent_end", model=model, turns=turns, stopped=stopped, input_tokens=usage.input, output_tokens=usage.output,
+        cache_read_tokens=usage.cache_read, cache_write_tokens=usage.cache_write)
+    return AgentOutcome(final_text, usage.input, usage.output, model, turns, stopped, usage.cache_read, usage.cache_write)
 
 
 async def complete_json(*, channel: str, agent: str, system: str, prompt: str, stage: str = "") -> tuple[Any, AgentOutcome]:

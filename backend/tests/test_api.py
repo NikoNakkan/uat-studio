@@ -71,7 +71,7 @@ def test_guard_refuses_env_and_other_sites(kit_dir):
 
 
 def test_new_run_intake_and_plan_without_ai(client, kit_dir):
-    with open(kit_dir / "examples" / "expense-tracker-tests.xlsx", "rb") as f:
+    with (kit_dir / "examples" / "expense-tracker-tests.xlsx").open("rb") as f:
         r = client.post("/api/runs", files={"file": ("expense-tracker-tests.xlsx", f)},
                         data={"strictness": "standard", "start": "false"}).json()
     run_id = r["id"]
@@ -86,7 +86,7 @@ def test_new_run_intake_and_plan_without_ai(client, kit_dir):
     result, note = asyncio.run(engine.stage_plan(c))
     assert result == "done" and "To generate" in note
     run = client.get(f"/api/runs/{run_id}").json()
-    assert run["data"]["generate_list"] and [s["id"] for s in run["stages"]][0] == "preflight"
+    assert run["data"]["generate_list"] and run["stages"][0]["id"] == "preflight"
     assert any(x["id"] == run_id for x in client.get("/api/runs").json())
 
 
@@ -183,7 +183,7 @@ def test_a_reconnecting_browser_resumes_after_its_last_event():
 
 
 def test_a_new_run_can_reuse_the_latest_excel(client, kit_dir):
-    with open(kit_dir / "examples" / "expense-tracker-tests.xlsx", "rb") as f:
+    with (kit_dir / "examples" / "expense-tracker-tests.xlsx").open("rb") as f:
         first = client.post("/api/runs", files={"file": ("cases-v1.xlsx", f)},
                             data={"strictness": "standard", "start": "false"}).json()["id"]
     latest = client.get("/api/excel/latest").json()

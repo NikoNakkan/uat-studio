@@ -133,7 +133,7 @@ def _kill_tree(proc: subprocess.Popen) -> bool:
     if os.name == "nt":
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     else:
@@ -157,8 +157,8 @@ def _kill_tree(proc: subprocess.Popen) -> bool:
 
 def _popen_kwargs():
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-    kw = dict(cwd=projects.current_dir(), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-              text=True, encoding="utf-8", errors="replace", shell=(os.name == "nt"))
+    kw = {"cwd": projects.current_dir(), "env": env, "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT,
+          "text": True, "encoding": "utf-8", "errors": "replace", "shell": os.name == "nt"}
     if os.name == "nt":
         kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
@@ -184,8 +184,8 @@ def _run_blocking(cmd: list[str], timeout: float | None, on_line: Callable[[str]
         lines: list[str] = []
         assert proc.stdout is not None
         try:
-            for line in proc.stdout:
-                line = line.rstrip("\n")
+            for raw in proc.stdout:
+                line = raw.rstrip("\n")
                 lines.append(line)
                 if on_line:
                     on_line(line)
@@ -202,20 +202,25 @@ def _run_blocking(cmd: list[str], timeout: float | None, on_line: Callable[[str]
         _untrack(proc)
 
 
+def _on_loop(loop: asyncio.AbstractEventLoop, on_line: Callable[[str], None] | None) -> Callable[[str], None] | None:
+    """Hand each output line (read in a worker thread) to on_line on the event loop."""
+    if on_line is None:
+        return None
+
+    def forward(line: str) -> None:
+        loop.call_soon_threadsafe(on_line, line)
+    return forward
+
+
 async def run_script(name: str, *args: str, timeout: float | None = 900,
                      on_line: Callable[[str], None] | None = None) -> ScriptResult:
     """Run one of the kit's Python scripts with the app's Python (same packages)."""
     cmd = [PY, SCRIPTS[name], *[str(a) for a in args]]
     loop = asyncio.get_running_loop()
-    if on_line:
-        safe = lambda line: loop.call_soon_threadsafe(on_line, line)  # noqa: E731
-    else:
-        safe = None
-    return await asyncio.to_thread(_run_blocking, cmd, timeout, safe)
+    return await asyncio.to_thread(_run_blocking, cmd, timeout, _on_loop(loop, on_line))
 
 
 async def run_command(cmd: list[str], timeout: float | None = 1800,
                       on_line: Callable[[str], None] | None = None) -> ScriptResult:
     loop = asyncio.get_running_loop()
-    safe = (lambda line: loop.call_soon_threadsafe(on_line, line)) if on_line else None
-    return await asyncio.to_thread(_run_blocking, cmd, timeout, safe)
+    return await asyncio.to_thread(_run_blocking, cmd, timeout, _on_loop(loop, on_line))

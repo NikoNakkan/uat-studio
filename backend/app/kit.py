@@ -5,6 +5,7 @@ re-implements them; it runs them exactly as the agents in VS Code would, and sho
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -117,7 +118,6 @@ def safe_kit_path(rel: str) -> Path:
 def features_module():
     """The current project's scripts/features.py, loaded fresh so profile changes are always seen. Loaded by
     file path, not by module name: with several projects, "import features" would keep the first one's."""
-    import importlib.util
     path = kit_dir() / "scripts" / "features.py"
     spec = importlib.util.spec_from_file_location(f"uat_features_{abs(hash(str(path)))}", path)
     module = importlib.util.module_from_spec(spec)

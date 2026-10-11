@@ -48,7 +48,7 @@ def list_config():
 
 @router.get("/kit/config/{name}")
 def get_config(name: str):
-    if name not in EDITABLE + ["features.yaml", "profile.yaml"]:
+    if name not in [*EDITABLE, "features.yaml", "profile.yaml"]:
         raise HTTPException(404, "Not a config file")
     return {"name": name, "text": (kit.KIT_DIR / "config" / name).read_text(encoding="utf-8"),
             "editable": name in EDITABLE}

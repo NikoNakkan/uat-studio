@@ -57,7 +57,7 @@ async def test_key():
         return {"ok": True, "answer": "".join(b.text for b in r.content if b.type == "text"), "model": r.model}
     except MissingApiKey as e:
         raise HTTPException(400, str(e)) from None
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise HTTPException(400, f"The API refused: {e}") from None
 
 

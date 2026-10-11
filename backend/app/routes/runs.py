@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import shutil
 import stat
@@ -119,7 +118,7 @@ async def _delete_tree(path: Path) -> None:
     """Remove a run folder. A browser or test can keep a file locked for a moment after Stop kills it."""
     def once() -> None:
         def onerror(func, p, exc):
-            os.chmod(p, stat.S_IWRITE)
+            Path(p).chmod(stat.S_IWRITE)
             func(p)
         shutil.rmtree(path, onerror=onerror)
 

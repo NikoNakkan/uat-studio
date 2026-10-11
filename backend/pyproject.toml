@@ -9,11 +9,18 @@ line-length = 130
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "UP", "I"]
+select = ["E", "F", "W", "B", "UP", "I", "SIM", "C4", "PIE", "RUF", "RET", "PTH", "PL"]
 ignore = [
-  "E731",   # small lambdas used as local helpers
-  "B008",   # FastAPI's File(...) / Form(...) defaults
+  "B008",     # FastAPI's File(...) / Form(...) defaults
+  "PLR2004",  # magic values: HTTP status codes and exit codes read better as numbers
+  "PLC0414",  # "x as x" is the explicit re-export idiom (kit re-exports processes)
 ]
+
+[tool.ruff.lint.pylint]
+max-args = 7      # keyword-only arguments (run_agent's channel, agent, system, prompt, tools, stage, max_turns)
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLC0415"]   # tests import inside a test to keep each one self-contained
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

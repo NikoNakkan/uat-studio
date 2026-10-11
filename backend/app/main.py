@@ -30,7 +30,7 @@ class ProjectMiddleware:
             jar = SimpleCookie()
             try:
                 jar.load(headers["cookie"])
-            except Exception:  # noqa: BLE001 - a bad cookie header means "no project chosen"
+            except Exception:
                 jar = SimpleCookie()
             pid = jar["uat_project"].value if "uat_project" in jar else None
         token = projects.use(pid)

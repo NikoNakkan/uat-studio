@@ -17,7 +17,7 @@ from .interactions import interactions
 def _decide_blocking(tool_name: str, args: dict) -> tuple[str, str]:
     payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": tool_name, "tool_input": args})
     proc = subprocess.run([kit.PY, str(kit.KIT_DIR / kit.SCRIPTS["guard"])], input=payload, capture_output=True,
-                          text=True, encoding="utf-8", cwd=kit.KIT_DIR, timeout=20,
+                          text=True, encoding="utf-8", cwd=kit.KIT_DIR, timeout=20, check=False,
                           env=dict(os.environ, PYTHONIOENCODING="utf-8"))
     out = proc.stdout.strip()
     if not out:

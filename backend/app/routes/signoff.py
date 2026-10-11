@@ -1,6 +1,9 @@
 """Sign-off decisions, manual results, closing, and the files that come out (results, clarified Excel)."""
 from __future__ import annotations
 
+import importlib.util
+import subprocess
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -73,7 +76,6 @@ def clarified_excel(run_id: str):
     cases = kit.read_json(p / "cases.json", []) or []
     if not cases:
         raise HTTPException(404, "The Excel has not been read yet")
-    import importlib.util
     spec = importlib.util.spec_from_file_location("make_template", kit.KIT_DIR / kit.SCRIPTS["make_template"])
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)                       # type: ignore[union-attr]
@@ -101,7 +103,6 @@ def open_trace(run_id: str, body: TraceIn):
     f = (p / body.path).resolve()
     if p.resolve() not in f.parents or f.suffix != ".zip" or not f.is_file():
         raise HTTPException(400, "Not a trace of this run")
-    import subprocess
     cmd = subprocess.list2cmdline(["npx", "playwright", "show-trace", str(f)])
     subprocess.Popen(cmd, cwd=kit.KIT_DIR, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return {"opened": True}

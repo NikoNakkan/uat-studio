@@ -42,7 +42,7 @@ def test_login_setup_can_always_be_stopped(client):
 
 def _alive(pid: int) -> bool:
     if os.name == "nt":
-        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True)
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True, check=False)
         return str(pid) in out.stdout
     try:
         os.kill(pid, 0)

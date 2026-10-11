@@ -18,6 +18,7 @@ from mcp import Client, StdioServerParameters
 
 from . import guard, kit
 from .llm import Tool, ToolResult
+from .settings import load_settings
 
 SKIP_DIRS = {"node_modules", ".git", "runs", "test-results", "playwright-report", "__pycache__"}
 
@@ -68,7 +69,6 @@ async def playwright_server(run_dir: Path | None):
     env = {"UAT_PROGRESS": "0"}                       # agent test runs never write the run's progress
     if run_dir is not None:
         env.update(UAT_RUN_DIR=str(run_dir), UAT_EVIDENCE_DIR=str(run_dir / "evidence-agents"))
-    from .settings import load_settings
     server = ["npx", "playwright", "run-test-mcp-server"] + ([] if load_settings().show_agent_browser else ["--headless"])
     if os.name == "nt":
         params = StdioServerParameters(command="cmd", args=["/c", *server], cwd=str(kit.KIT_DIR), env=env)
@@ -94,7 +94,7 @@ def _result_from_mcp(result) -> ToolResult:
 async def playwright_tools(client: Client, agent: str, channel: str, allowed_edit: set[str] | None = None) -> list[Tool]:
     """The tools named in the Playwright agent's own file, wrapped with the guard."""
     meta, _ = load_agent_file(agent)
-    wanted = [t for t in meta.get("tools", [])]
+    wanted = list(meta.get("tools", []))
     mcp_names = {t.split("/", 1)[1] for t in wanted if t.startswith("playwright-test/")}
     listing = await client.list_tools()
     tools: list[Tool] = []

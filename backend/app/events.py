@@ -12,6 +12,7 @@ from collections import defaultdict
 from typing import Any
 
 from . import kit, projects
+from .settings import STATE_DIR
 
 MAX_TEXT = 4000
 
@@ -28,7 +29,6 @@ class EventBus:
 
     def _file(self, channel: str):
         if channel == "app":
-            from .settings import STATE_DIR
             STATE_DIR.mkdir(parents=True, exist_ok=True)
             pid = projects.current_id()
             return STATE_DIR / ("app-events.jsonl" if pid == projects.MAIN else f"app-events-{pid}.jsonl")

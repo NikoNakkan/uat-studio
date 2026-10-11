@@ -96,7 +96,7 @@ async def start_login_setup(file: UploadFile | None = File(None)):
                 bus.emit("app", "note", stage="setup-login", text=f"Login setup finished ({o.stopped}).")
             except MissingApiKey as e:
                 bus.emit("app", "agent_error", stage="setup-login", text=str(e))
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 bus.emit("app", "agent_error", stage="setup-login", text=f"Login setup failed: {e}")
 
     login_task[projects.current_id()] = asyncio.create_task(job())
