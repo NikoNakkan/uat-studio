@@ -135,7 +135,7 @@ export function ClinicProvider({ children }: { children: ReactNode }) {
       if (!method.trim()) { setStatus('Enter a method.'); return false; }
       const invoice = invoices.find(i => i.id === id);
       if (!invoice) { setStatus('That invoice is not on the list.'); return false; }
-      setInvoices(list => list.map(i => i.id === id ? { ...i, status: 'Paid' } : i));
+      setInvoices(list => list.map(i => i.patientId === invoice.patientId ? { ...i, status: 'Paid' } : i));
       setStatus(`Paid ${id}`);
       return true;
     },

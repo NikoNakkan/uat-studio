@@ -2,6 +2,7 @@
 
   lumen-clinic-tests.xlsx      first pack
   lumen-clinic-tests-v2.xlsx   a later edit: wording, a real change, a removal, a near-duplicate
+  lumen-clinic-tests-v3.xlsx   v2 plus a changed stock case and a new billing case that finds the planted bug
 
 Run from anywhere: python demo-app/uat/make_cases.py
 """
@@ -366,7 +367,29 @@ def v2() -> list[dict]:
     return rows
 
 
+def v3() -> list[dict]:
+    rows = [dict(r) for r in v2()]
+    for row in rows:
+        if row["test_id"] == "TC-15":
+            row["title"] = "Manager sets paracetamol to 6"
+            row["steps"] = row["steps"].replace('"8"', '"6"')
+            row["expected_results"] = row["expected_results"].replace("8", "6")
+    rows.append({
+        "test_id": "TC-39", "group": "Billing", "title": "Paying one invoice leaves the patient's other invoice unpaid",
+        "start_page": START + "/billing", "login_as": MANAGER,
+        "preconditions": "INV-100 is unpaid for Ada Lovelace (€40.00). INV-102 does not exist yet.",
+        "steps": '1. Click "New invoice"\n2. Choose "Ada Lovelace" in Patient\n3. Type "25.00" in Amount\n4. Click "Save invoice"\n'
+                 '5. Click "Pay INV-100"\n6. Type "Card" in Method\n7. Click "Pay invoice"\n8. Click "Reports"',
+        "expected_results": '4. The status message shows "Raised INV-102 for €25.00"\n7. The status message shows "Paid INV-100"\n'
+                            '7. The invoice list shows "Pay INV-102"\n8. The report shows "Unpaid €25.00"\n8. The report shows "1 unpaid invoice"',
+        "automation": "auto", "priority": "High",
+        "notes": "Pay asks a person before the click.",
+    })
+    return rows
+
+
 if __name__ == "__main__":
     write(ROOT / "lumen-clinic-tests.xlsx", V1)
     write(ROOT / "lumen-clinic-tests-v2.xlsx", v2())
-    print(f"Wrote {len(V1)} cases and {len(v2())} changed cases in {ROOT}")
+    write(ROOT / "lumen-clinic-tests-v3.xlsx", v3())
+    print(f"Wrote {len(V1)}, {len(v2())} and {len(v3())} cases in {ROOT}")

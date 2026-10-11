@@ -33,9 +33,14 @@ Each browser visit starts from the same morning: Ada at 09:00 still Booked, alle
 | --- | --- |
 | `uat/lumen-clinic-tests.xlsx` | The first run. 37 cases. TC-18 and TC-37 are vague on purpose, so clarification has something to ask. TC-19 and TC-38 are manual calls, recorded at sign-off, never generated. |
 | `uat/lumen-clinic-tests-v2.xlsx` | A later run of the same pack. TC-04 is only reworded, TC-08 moves 14:30 to 15:00, TC-14 is gone, TC-20 is new and close to TC-05. The new desk cases are in both packs. |
+| `uat/lumen-clinic-tests-v3.xlsx` | The demo of a caught bug. Same as v2, plus TC-15 now sets paracetamol to 6 instead of 8, and TC-39 is new: pay INV-100 while Ada also owes INV-102. TC-39 fails on purpose (see Planted bug). |
 
 Paste `uat/GLOSSARY.md` into Knowledge before the run if you want the clarifier to keep those meanings.
 
 Delete, pay, remove, and send stop for a person. That is the guard, not a bug in the desk.
+
+## Planted bug
+
+Paying an invoice marks every invoice of that patient as paid, not just the one paid (`pay` in `src/store.tsx` matches on `patientId` instead of `id`). Ada starts with one invoice, so TC-13 and the other cases still pass; only TC-39 in v3 gives her a second one and catches it: the report shows €0.00 unpaid instead of €25.00. To fix it, match on `i.id === id` again.
 
 Rebuild the workbooks with `python uat/make_cases.py` from `demo-app` (needs `openpyxl`).
