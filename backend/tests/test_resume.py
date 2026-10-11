@@ -153,3 +153,14 @@ def test_a_loop_back_shows_clarification_running_again(kit_dir, monkeypatch):
                                                ("plan", "started"), ("plan", "done"), ("planner_check", "started")]
     assert marks[2][2] == "Round 2, from the live app check (TC-08): 1 case(s) clarified"
     assert c.stage == "planner_check"
+
+
+def test_only_steps_that_cannot_be_done_go_back_to_clarification():
+    """Results that differ from the Excel are suspected app bugs: the run and the diagnosis settle them."""
+    from app.stages_prepare import _lines, _section
+
+    report = ("## Mismatches\n- TC-08 step 2: \"Save\" not found. The page has \"Save appointment\".\n\n"
+              "## Results that differ\n- TC-42 step 3: expected no \"Low\"; the page shows \"Saline 5 on hand Low\".\n\n"
+              "## App map\n```yaml\npages:\n  stock:\n    elements:\n      - { role: button, name: \"Save stock\" }\n```\n")
+    assert _lines(_section(report, "Mismatches")) == ['- TC-08 step 2: "Save" not found. The page has "Save appointment".']
+    assert "TC-42" in _section(report, "Results that differ")

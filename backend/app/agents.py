@@ -75,6 +75,8 @@ async def run_clarifier(channel: str, run: Path, case_ids: list[str], mismatches
               "First confirm every case in changes.json whose decision is null (confirm_change).\n"
               "Then read cases.json and clarify the listed cases with ask_person, recording every answer.\n"
               + planner_part
+              + "\nThe Excel is the requirement. Never ask whether the app or the test case is right, and never change "
+              "an expected result to match what the app shows: ask only what makes a step or a result unclear.\n"
               + "\nEnd with one line per case: clarified, or open with the reason.")
     # No writing-questionnaires here: the person exports the open questions as a questionnaire from the card.
     system = system_for("uat-clarifier", ["detecting-test-changes", "grilling-test-cases", "maintaining-glossary"])
@@ -121,7 +123,8 @@ async def run_diagnostician(channel: str, run: Path, failed: list[str], stage: s
     system = system_for("uat-diagnostician", ["diagnosing-failures", "reproducing-failures"])
     prompt = (f"Run folder: {rel}. Failed tests: {', '.join(failed)}.\nRead progress.json for each test's error and "
               "evidence folder, look at the last step screenshots, then diagnose, label, reproduce and ask as your "
-              "instructions say. Write diagnoses.md at the end.")
+              "instructions say. If suspected-bugs.md exists, the planner already saw these results differ from the "
+              "Excel while walking the app: a hint to confirm by reproducing, not a verdict. Write diagnoses.md at the end.")
     return await run_agent(channel=channel, agent="uat-diagnostician", system=system, prompt=prompt, tools=tools, stage=stage)
 
 

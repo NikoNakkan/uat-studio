@@ -101,8 +101,8 @@ class PrepareStages(StageRunner):
                     await self.usage(c, pw_agents.planner_agent(items), o)
                     report.write_text(o.text, encoding="utf-8")
                     r = await self.script(c, "merge_app_map", c.rel, group)
-                if r.code == 1:
-                    mismatches += "\n" + "\n".join(line for line in o.text.splitlines() if line.strip().startswith("- "))
+                if r.code == 1:                                   # only steps that could not be done go back
+                    mismatches += "\n" + "\n".join(_lines(_section(o.text, "Mismatches")))
             if not mismatches.strip():
                 return "done", f"{len(entries)} case(s) checked against the live app"
             rounds = state.get("planner_rounds", 0) + 1
@@ -131,3 +131,13 @@ class PrepareStages(StageRunner):
                         partial(self.stage_clarify, c, mismatches))
         await self.redo(c, "plan", f"Rewritten after clarification round {again}", partial(self.stage_plan, c))
         await self.mark(c, "planner_check", "started", f"Checking again after clarification round {again}: {which}")
+
+
+def _section(text: str, title: str) -> str:
+    """One "## title" section of the planner's report (up to the next heading)."""
+    m = re.search(rf"^##\s*{title}\s*$(.*?)(?=^##\s|\Z)", text, re.M | re.S | re.I)
+    return m.group(1) if m else ""
+
+
+def _lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip().startswith("- ")]
