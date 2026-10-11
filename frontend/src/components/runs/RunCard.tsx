@@ -2,14 +2,14 @@ import { Link } from 'react-router';
 import type { RunSummary } from '../../api';
 import { STAGES } from '../run/stages';
 import { RunActions } from '../RunActions';
-import { RUN_STATE, when } from './runState';
+import { stateOf, when } from './runState';
 
 /**
  * One run in a list: when it ran and with which Excel, where it stands, how far it got and how its tests did,
  * and what can be done with it. `big` is the dashboard's latest run.
  */
 export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolean }) {
-  const state = RUN_STATE[r.state];
+  const state = stateOf(r.state);
   const stage = r.current ? STAGES[r.current]?.title ?? r.current : null;
   const notRun = Math.max(0, r.tests - r.passed - r.failed);
   return (

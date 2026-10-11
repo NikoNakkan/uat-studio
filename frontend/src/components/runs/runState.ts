@@ -10,6 +10,11 @@ export const RUN_STATE: Record<RunState, { label: string; badge: string; bar: st
   not_started: { label: 'Not started', badge: 'bg-surface-2 text-muted', bar: 'bg-line' },
 };
 
+/** A run's look; an unknown or missing state (an older server) reads as "Not started" instead of breaking the page. */
+export function stateOf(state: string | undefined) {
+  return RUN_STATE[state as RunState] ?? RUN_STATE.not_started;
+}
+
 /** "11 Oct, 02:44" from the run's ISO time; the run id when the time is unknown. */
 export function when(created: string | null, fallback: string): string {
   if (!created) return fallback;

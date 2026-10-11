@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import { RunCard } from '../components/runs/RunCard';
-import { RUN_STATE, when } from '../components/runs/runState';
+import { stateOf, when } from '../components/runs/runState';
 import { useEnv, useInteractions, useLoginWritten, useProjects, useRuns, useSettings, useSetupCheck } from '../lib/queries';
 import { Card, Empty, QueryGate, useTitle } from '../ui';
 
@@ -49,7 +49,7 @@ export function HomePage() {
                 <li key={r.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
                   <Link to={`/runs/${r.id}`} className="font-medium hover:underline">{when(r.created, r.id)}</Link>
                   <span className="text-muted">{r.excel}</span>
-                  <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${RUN_STATE[r.state].badge}`}>{RUN_STATE[r.state].label}</span>
+                  <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${stateOf(r.state).badge}`}>{stateOf(r.state).label}</span>
                   <span className="tnum text-muted">{r.passed}/{r.tests} passed</span>
                 </li>
               ))}

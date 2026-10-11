@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RUN_STATE, when } from './runState';
+import { RUN_STATE, stateOf, when } from './runState';
 
 describe('when', () => {
   it('falls back to the run id when the time is missing or unreadable', () => {
@@ -14,5 +14,13 @@ describe('when', () => {
 describe('RUN_STATE', () => {
   it('has a label for every state the server sends', () => {
     for (const s of ['running', 'waiting', 'signed_off', 'stopped', 'finished', 'not_started'] as const) expect(RUN_STATE[s].label).toBeTruthy();
+  });
+});
+
+describe('stateOf', () => {
+  it('does not break on a state an older server leaves out', () => {
+    expect(stateOf(undefined)).toBe(RUN_STATE.not_started);
+    expect(stateOf('something new')).toBe(RUN_STATE.not_started);
+    expect(stateOf('running')).toBe(RUN_STATE.running);
   });
 });
