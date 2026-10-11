@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useMatch } from 'react-router';
 import { useHealth, useInteractions, useSettings } from './lib/queries';
+import { applyTheme, readTheme, THEME_KEY, writeTheme, type Theme } from './lib/theme';
 
 import { LiveProvider, LiveRail } from './components/Live';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
@@ -86,21 +88,58 @@ export function App() {
               : null}
         </div>
       </aside>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
-        <main id="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 outline-none md:px-8">
-          <Routes>
-            <Route path="/" element={<RunsPage />} />
-            <Route path="/runs/:runId" element={<RunPage />} />
-            <Route path="/setup" element={<SetupPage />} />
-            <Route path="/switches" element={<SwitchesPage />} />
-            <Route path="/knowledge" element={<KnowledgePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
-        </main>
-        <LiveRail />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center justify-end border-b border-line bg-surface px-4 py-1.5 md:px-8">
+          <ThemeButton />
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
+          <main id="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 outline-none md:px-8">
+            <Routes>
+              <Route path="/" element={<RunsPage />} />
+              <Route path="/runs/:runId" element={<RunPage />} />
+              <Route path="/setup" element={<SetupPage />} />
+              <Route path="/switches" element={<SwitchesPage />} />
+              <Route path="/knowledge" element={<KnowledgePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Routes>
+          </main>
+          <LiveRail />
+        </div>
       </div>
     </div>
     </LiveProvider>
+  );
+}
+
+function ThemeButton() {
+  const [theme, setTheme] = useState<Theme>(readTheme);
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== THEME_KEY) return;
+      const next = readTheme();
+      setTheme(next);
+      applyTheme(next);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+  const dark = theme === 'dark';
+  const choose = () => {
+    const next: Theme = dark ? 'light' : 'dark';
+    setTheme(next);
+    writeTheme(next);
+  };
+  return (
+    <button type="button" onClick={choose} aria-pressed={dark}
+      title={dark ? 'Switch to the light theme' : 'Switch to the dark theme'}
+      className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1 text-sm font-medium text-ink hover:bg-surface-2">
+      <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+        {dark
+          ? <path d="M12 3v2m0 14v2M5.6 5.6l1.4 1.4m10 10 1.4 1.4M3 12h2m14 0h2M5.6 18.4l1.4-1.4m10-10 1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+          : <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />}
+      </svg>
+      {dark ? 'Light theme' : 'Dark theme'}
+    </button>
   );
 }
 
