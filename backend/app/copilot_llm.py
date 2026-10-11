@@ -132,7 +132,10 @@ async def run_agent(*, channel: str, agent: str, system: str, prompt: str | list
         c = await client()
         conv.session = await c.create_session(
             model=wanted, tools=[_wrap(t, say) for t in tools], available_tools=[t.name for t in tools],
-            system_message={"mode": "replace", "content": system}, on_permission_request=_refuse)
+            system_message={"mode": "replace", "content": system}, on_permission_request=_refuse,
+            # Copilot would cut a large result to a preview in a temp file, meant for its own file tool, which this
+            # session does not have: the agent then never sees the rest. Studio's tools cap their results already.
+            large_output={"enabled": False})
     except Exception as e:
         say("agent_error", text=f"Copilot could not start the session: {e}")
         return AgentOutcome(f"(Copilot could not start: {e})", 0, 0, f"copilot:{wanted}", 0, "error")
