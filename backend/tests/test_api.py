@@ -75,7 +75,8 @@ def test_new_run_intake_and_plan_without_ai(client, kit_dir):
         r = client.post("/api/runs", files={"file": ("expense-tracker-tests.xlsx", f)},
                         data={"strictness": "standard", "start": "false"}).json()
     run_id = r["id"]
-    from app.engine import Ctx, engine
+    from app.engine import engine
+    from app.stage_base import Ctx
     c = Ctx(run_id)
     c.stage = "intake"
     result, note = asyncio.run(engine.stage_intake(c))
@@ -91,8 +92,9 @@ def test_new_run_intake_and_plan_without_ai(client, kit_dir):
 
 def test_clarify_without_api_key_waits_for_the_person(client, kit_dir):
     run_id = client.get("/api/runs").json()[0]["id"]
-    from app.engine import Ctx, engine
+    from app.engine import engine
     from app.llm import MissingApiKey
+    from app.stage_base import Ctx
     c = Ctx(run_id)
     c.stage = "clarify"
     try:
