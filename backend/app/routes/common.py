@@ -8,10 +8,10 @@ from fastapi import HTTPException
 from .. import kit
 
 RUN_FILES = ["progress.json", "cases.json", "cases-original.json", "changes.json", "generate-list.json", "test-check.json",
-             "flakiness.json", "evidence-check.json", "diagnoses.json", "console-new.json", "screens.json",
+             "flakiness.json", "evidence-check.json", "diagnoses.json", "screens.json",
              "screens-review.json", "usage.json", "signoff.json", "manifest.json", "studio-reasoning.json",
              "studio-state.json", "studio-validation.json"]
-RUN_TEXTS = ["changes.md", "clarifications.md", "questionnaire.md", "mismatches.md", "console.md", "diagnoses.md",
+RUN_TEXTS = ["changes.md", "clarifications.md", "questionnaire.md", "mismatches.md", "diagnoses.md",
              "excel-updates.md"]
 
 

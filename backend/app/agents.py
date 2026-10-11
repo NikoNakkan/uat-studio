@@ -82,14 +82,6 @@ async def run_clarifier(channel: str, run: Path, case_ids: list[str], mismatches
     return await run_agent(channel=channel, agent="uat-clarifier", system=system, prompt=prompt, tools=tools, stage=stage)
 
 
-# ---------------- console analyst ----------------
-
-async def run_console_analyst(channel: str, run: Path, stage: str):
-    tools = [*read_tools(channel, run, ["config/console-noise.yaml"]), write_run_file_tool(run, ["console.md"])]
-    system = system_for("uat-console-analyst", ["analyzing-console-errors"])
-    prompt = f"Run folder: runs/{run.name}. Read console-new.json and write console.md."
-    return await run_agent(channel=channel, agent="uat-console-analyst", system=system, prompt=prompt, tools=tools, stage=stage)
-
 
 # ---------------- diagnostician ----------------
 
@@ -176,7 +168,7 @@ async def run_screen_reviewer(channel: str, run: Path, stage: str):
 
 async def reporter_reasoning(channel: str, run: Path, stage: str):
     check = kit.read_json(run / "evidence-check.json", {})
-    extra = {n: (run / n).read_text(encoding="utf-8")[:6000] for n in ("console.md", "diagnoses.md") if (run / n).exists()}
+    extra = {n: (run / n).read_text(encoding="utf-8")[:6000] for n in ("diagnoses.md",) if (run / n).exists()}
     system = system_for("uat-reporter", ["verifying-evidence"])
     prompt = ("Write one line of reasoning per sign-off unit for the person deciding. Never change a recommendation. "
               "Answer only with JSON {\"<unit>\": \"<one line>\"}.\n\nevidence-check.json:\n"

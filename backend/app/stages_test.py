@@ -68,16 +68,6 @@ class TestStages(StageRunner):
         failed = sum(1 for t in tests.values() if t.get("result") != "passed")
         return "done", f"{len(tests)} test(s) run, {failed} failed"
 
-    async def stage_console_review(self, c: Ctx):
-        r = await self.script(c, "filter_console", c.rel)
-        groups = kit.read_json(c.run / "console-new.json", {}).get("groups", [])
-        if not groups:
-            return "skipped", "0 new errors"
-        o = await agents.run_console_analyst(c.run_id, c.run, c.stage)
-        await self.usage(c, "uat-console-analyst", o)
-        self.check_outcome(o, "Console review")
-        return "done", r.output.splitlines()[0] if r.output else ""
-
     async def stage_failures(self, c: Ctx):
         tests = c.progress().get("tests", {})
         failed = [t for t, v in tests.items() if v.get("result") != "passed"]

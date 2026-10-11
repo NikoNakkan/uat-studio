@@ -49,9 +49,6 @@ AGENTS = {
     "uat-diagnostician": AgentInfo(
         "Diagnoses failures, reproduces suspected bugs", OPUS,
         "Decides app bug or broken test; runs only on failures, and a wrong call misleads the sign-off."),
-    "uat-console-analyst": AgentInfo(
-        "Explains new console and network errors", HAIKU,
-        "Short explanations of error text; a small, fast model is enough."),
     "uat-screen-reviewer": AgentInfo(
         "Labels changed screens explained or unexplained", SONNET,
         "Compares screenshots with the change notes; needs good vision and judgment."),

@@ -37,7 +37,7 @@ def get_app_map():
     return {"text": text, "data": yaml.safe_load(text) if text else None}
 
 
-EDITABLE = ["guardrails.yaml", "strictness.yaml", "signoff.yaml", "screen-compare.yaml", "console-noise.yaml",
+EDITABLE = ["guardrails.yaml", "strictness.yaml", "signoff.yaml", "screen-compare.yaml",
             "test-check-rules.yaml", "excel-template.yaml", "workflow.yaml"]
 
 
@@ -64,34 +64,6 @@ def put_config(name: str, body: TextIn):
         raise HTTPException(400, f"Not valid YAML: {e}") from None
     (kit.KIT_DIR / "config" / name).write_text(body.text, encoding="utf-8")
     return {"ok": True}
-
-
-class NoiseIn(BaseModel):
-    kind: str            # console | network
-    pattern: str
-    reason: str
-    status: list[int] = []
-
-
-@router.post("/kit/console-noise")
-def add_console_noise(body: NoiseIn):
-    """A person accepts a console message or failed request as known, harmless noise (decision 31)."""
-    if body.kind not in ("console", "network") or not body.pattern.strip() or not body.reason.strip():
-        raise HTTPException(400, "Give the kind (console or network), the text to match and why it is harmless.")
-    path = kit.KIT_DIR / "config" / "console-noise.yaml"
-    text = path.read_text(encoding="utf-8")
-    header = "".join(line + "\n" for line in text.splitlines() if line.startswith("#"))
-    data = yaml.safe_load(text) or {}
-    entry = {"pattern": body.pattern.strip()} if body.kind == "console" else {"url_pattern": body.pattern.strip()}
-    if body.kind == "network" and body.status:
-        entry["status"] = body.status
-    entry["reason"] = body.reason.strip()
-    data.setdefault(body.kind, [])
-    if not isinstance(data[body.kind], list):
-        data[body.kind] = []
-    data[body.kind].append(entry)
-    path.write_text(header + "\n" + yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-    return {"ok": True, "entries": len(data[body.kind])}
 
 
 @router.get("/kit/tests")

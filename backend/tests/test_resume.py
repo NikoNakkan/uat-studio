@@ -98,3 +98,26 @@ def test_redo_signoff_clears_the_seal_and_keeps_the_old_signoff(client, kit_dir)
     assert json.loads((run / r["kept_in"] / "signoff.json").read_text(encoding="utf-8")) == decisions
     assert kit.read_json(run / "progress.json")["stages"]["signoff"]["status"] == "started"
     assert not next(x for x in client.get("/api/runs").json() if x["id"] == "2026-01-04-0000")["sealed"]
+
+
+def test_a_stage_studio_no_longer_has_is_skipped(kit_dir, monkeypatch):
+    """A project made before the console review was removed still lists it in its own workflow.yaml."""
+    import asyncio
+    import json
+
+    from app import kit
+    from app.engine import engine
+
+    run = kit_dir / "runs" / "2026-01-05-0000"
+    run.mkdir(parents=True)
+    (run / "progress.json").write_text(json.dumps({"stages": {}, "tests": {}}), encoding="utf-8")
+    real = kit.workflow
+    monkeypatch.setattr(kit, "workflow", lambda: {**real(), "stages": [{"id": "console_review"}]})
+    marks = []
+
+    async def mark(c, sid, status, note=""):
+        marks.append((sid, status))
+
+    monkeypatch.setattr(engine, "mark", mark)
+    asyncio.run(engine._run_owned("2026-01-05-0000"))
+    assert marks == [("console_review", "skipped")]

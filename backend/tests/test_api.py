@@ -157,17 +157,6 @@ def test_clarified_excel_round_trips_through_the_kit_reader(client, kit_dir):
     assert ws.cell(2, steps_col + 1).value.startswith("1. ")
 
 
-def test_known_noise_is_added_by_a_person(client, kit_dir):
-    assert client.post("/api/kit/console-noise", json={"kind": "console", "pattern": "x", "reason": ""}).status_code == 400
-    r = client.post("/api/kit/console-noise", json={"kind": "network", "pattern": "/analytics/", "reason": "blocked in UAT",
-                                                     "status": [404]}).json()
-    assert r["ok"]
-    import yaml
-    text = (kit_dir / "config" / "console-noise.yaml").read_text(encoding="utf-8")
-    assert text.startswith("# Known harmless")                            # the header comment is kept
-    assert {"url_pattern": "/analytics/", "status": [404], "reason": "blocked in UAT"} in yaml.safe_load(text)["network"]
-
-
 def test_open_trace_refuses_anything_but_a_trace_of_the_run(client):
     run_id = _latest_run(client)
     assert client.post(f"/api/runs/{run_id}/open-trace", json={"path": "../../.env"}).status_code == 400

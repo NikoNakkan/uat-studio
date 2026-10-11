@@ -4,7 +4,6 @@ import { Card, Pre } from '../../ui';
 import { Signoff } from '../Signoff';
 import { VisualRegression } from '../VisualRegression';
 import { CasesView, ChangesView } from './CasesView';
-import { ConsoleView } from './ConsoleView';
 import { ResultsView } from './ResultsView';
 import { FailuresView } from './RunDetails';
 import { TestsView } from './TestsView';
@@ -18,7 +17,6 @@ export function stageOutput(id: string, runId: string, r: RunDetail, visual: { f
     case 'planner_check': return r.texts['mismatches.md'] ? <Card title="Mismatches"><Pre>{r.texts['mismatches.md']}</Pre></Card> : null;
     case 'test_check': return d.test_check ? <TestsView d={d} /> : null;
     case 'run': return Object.keys(d.progress?.tests ?? {}).length ? <ResultsView runId={runId} r={r} onVisual={visual.setFocus} /> : null;
-    case 'console_review': return d.console_new || r.texts['console.md'] ? <ConsoleView r={r} /> : null;
     case 'failures': return d.diagnoses ? <FailuresView r={r} /> : null;
     case 'screens': return d.screens ? <>
       {visual.focus && <p className="text-sm">Showing {visual.focus} only · <button className="text-link hover:underline" onClick={() => visual.setFocus(null)}>show every test</button></p>}

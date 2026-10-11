@@ -32,7 +32,6 @@ SCRIPTS = {
     "merge_app_map": ".github/skills/mapping-the-app/scripts/merge_app_map.py",
     "check_tests": ".github/skills/checking-generated-tests/scripts/check_tests.py",
     "repeat_new_tests": ".github/skills/checking-flakiness/scripts/repeat_new_tests.py",
-    "filter_console": ".github/skills/analyzing-console-errors/scripts/filter_console.py",
     "record_diagnosis": ".github/skills/diagnosing-failures/scripts/record_diagnosis.py",
     "reproduce": ".github/skills/reproducing-failures/scripts/reproduce.py",
     "compare_screens": ".github/skills/comparing-screens/scripts/compare_screens.py",

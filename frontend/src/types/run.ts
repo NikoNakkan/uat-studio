@@ -28,8 +28,6 @@ export type SignoffUnit = { tests: string[]; recommendation: string; manual?: st
 export type EvidenceCheck = { sign_off_unit: string; tests: Record<string, CheckedTest>; units: Record<string, SignoffUnit> };
 
 export type Diagnosis = { cause?: string; summary?: string; error?: string; reproduction?: string; reproduction_detail?: string; repair?: string };
-export type ConsoleGroup = { message: string; kind: string; where: { test_id: string; step: string | number }[]; in_failing_test: boolean; count: number };
-export type ConsoleNew = { groups: ConsoleGroup[]; captured: number; ignored_as_noise: number };
 export type ScreenPair = { test_id: string; step: number; name?: string; status?: string; changed_pixels?: number };
 export type Screens = { baseline_run?: string | null; pairs?: ScreenPair[]; flagged?: ScreenPair[] };
 export type UsageRow = { stage: string; agent: string; model: string; input_tokens: number; output_tokens: number; source: string; at?: string };
@@ -47,7 +45,6 @@ export type RunData = {
   flakiness: Record<string, Flaky> | null;
   evidence_check: EvidenceCheck | null;
   diagnoses: Record<string, Diagnosis> | null;
-  console_new: ConsoleNew | null;
   screens: Screens | null;
   usage: UsageRow[] | null;
   signoff: Signoff | null;

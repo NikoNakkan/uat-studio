@@ -84,6 +84,9 @@ class Engine(PrepareStages, TestStages):
                 if not kit.is_on(stage.get("feature", "")):
                     await self.mark(c, sid, "skipped", "off in config/profile.yaml")
                     continue
+                if not hasattr(self, f"stage_{sid}"):        # a project's older workflow (e.g. the removed console review)
+                    await self.mark(c, sid, "skipped", "no longer part of the flow")
+                    continue
                 await self.mark(c, sid, "started")
                 outcome = await getattr(self, f"stage_{sid}")(c)
                 result, note = outcome if isinstance(outcome, tuple) else ("done", "")
