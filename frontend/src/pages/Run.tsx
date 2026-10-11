@@ -38,7 +38,7 @@ export function RunPage() {
   return (
     <div className="mx-auto grid max-w-5xl gap-4">
       <RunHeader runId={runId} r={r} />
-      <Stepper label="Stages of this run" steps={steps} />
+      <Stepper label="Stages of this run" steps={steps} loops={r.loops ?? []} />
       <CostView cost={r.cost} />
       <details className="rounded-lg border border-line bg-surface p-3 text-sm">
         <summary className="cursor-pointer font-medium">More: tokens of every agent call and every file of this run</summary>

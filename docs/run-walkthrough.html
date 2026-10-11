@@ -1,0 +1,334 @@
+<title>UAT Studio Run Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: a header strip, a replay console (stage rail + live feed), then a ledger of the 11 stages, loops and totals. */
+:root {
+  --bg: #f6f6fa; --surface: #ffffff; --surface-2: #ececf1; --ink: #2e2e38; --muted: #6b6b78; --line: #d6d6de;
+  --accent: #ffe600; --accent-ink: #2e2e38; --accent-soft: #fff6b0;
+  --script: #2f6f9f; --agent: #6b4bb5; --you: #a35b00; --guard: #b42318; --good: #146c43;
+  --rail: #2e2e38; --rail-ink: #f6f6fa; --rail-muted: #b9b9c4;
+  --font-display: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Barlow", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1a1a22; --surface: #24242d; --surface-2: #2f2f3a; --ink: #f2f2f7; --muted: #b3b3c0; --line: #3d3d4a;
+  --accent: #ffe600; --accent-ink: #1a1a22; --accent-soft: #4a4520;
+  --script: #7fb8e6; --agent: #b9a3f5; --you: #f5b942; --guard: #ff8a7a; --good: #5bd38b;
+  --rail: #121218; --rail-ink: #f6f6fa; --rail-muted: #a8a8b5; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #1a1a22; --surface: #24242d; --surface-2: #2f2f3a; --ink: #f2f2f7; --muted: #b3b3c0; --line: #3d3d4a;
+  --accent: #ffe600; --accent-ink: #1a1a22; --accent-soft: #4a4520;
+  --script: #7fb8e6; --agent: #b9a3f5; --you: #f5b942; --guard: #ff8a7a; --good: #5bd38b;
+  --rail: #121218; --rail-ink: #f6f6fa; --rail-muted: #a8a8b5; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: .01em; text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-size: clamp(2rem, 4.4vw, 3rem); }
+h2 { font-size: 1.7rem; }
+h3 { font-size: 1.3rem; }
+p { margin: 0; max-width: 72ch; }
+code, .mono { font-family: var(--font-mono); font-size: .86em; }
+.muted { color: var(--muted); }
+.eyebrow { font-size: .75rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+/* header */
+header { display: grid; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand b { display: grid; place-items: center; width: 34px; height: 34px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 13px; }
+h1 .mark { box-shadow: inset 0 -0.28em 0 var(--accent); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact { border: 1px solid var(--line); background: var(--surface); padding: 4px 10px; font-size: .88rem; }
+.fact b { font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: .88rem; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.kind { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.k-script { background: var(--script); } .k-agent { background: var(--agent); } .k-you { background: var(--you); } .k-guard { background: var(--guard); }
+
+/* replay */
+.replay { display: grid; gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 6px 14px; border-radius: 6px; }
+button:hover { border-color: var(--ink); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.speed { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.speed button { border: 0; border-radius: 0; padding: 6px 10px; }
+.speed button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.bar { height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; flex: 1 1 160px; min-width: 120px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.console { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); background: var(--rail); color: var(--rail-ink); border-radius: 10px; overflow: hidden; min-height: 520px; }
+.stages { list-style: none; margin: 0; padding: 14px 10px; display: grid; align-content: start; gap: 2px; border-right: 1px solid #ffffff1a; }
+.stages li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: center; padding: 7px 8px; border-radius: 6px; color: var(--rail-muted); }
+.stages .dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #ffffff33; display: grid; place-items: center; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stages .who { font-size: .74rem; opacity: .8; display: block; }
+.stages li.now { background: #ffffff12; color: var(--rail-ink); }
+.stages li.now .dot { background: var(--accent); border-color: var(--accent); color: #2e2e38; }
+.stages li.done { color: var(--rail-ink); }
+.stages li.done .dot { background: #3fae74; border-color: #3fae74; color: #fff; }
+.stages li.loop { animation: flash 1.4s ease-out; }
+@keyframes flash { 0%, 40% { background: #ffe60040; } 100% { background: transparent; } }
+.feed { padding: 14px 16px; overflow-y: auto; max-height: 620px; display: grid; align-content: start; gap: 4px; font-family: var(--font-mono); font-size: .82rem; }
+.feed .stagehead { font-family: var(--font-display); font-size: 1.05rem; color: var(--accent); margin-top: 10px; letter-spacing: .02em; }
+.feed .lead { font-family: var(--font-body); color: var(--rail-muted); font-size: .88rem; margin-bottom: 4px; }
+.line { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; animation: in .25s ease-out; }
+.line .tag { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; padding-top: 2px; }
+.line .txt { overflow-wrap: anywhere; }
+.t-script .tag { color: #8fc3ec; } .t-agent .tag, .t-say .tag, .t-end .tag { color: #c6b3ff; }
+.t-tool .tag { color: #9ea0ad; } .t-ask .tag, .t-you .tag { color: #f5b942; } .t-guard .tag { color: #ff8a7a; }
+.t-note .tag { color: var(--accent); } .t-done .tag { color: #5bd38b; } .t-more .tag { color: #6f7080; }
+.t-say .txt { font-family: var(--font-body); font-style: italic; color: #e6e1ff; }
+.t-done .txt { color: #b8f0cf; }
+.t-note .txt { color: var(--accent); }
+.intro { font-family: var(--font-body); color: var(--rail-muted); max-width: 60ch; display: grid; gap: 8px; }
+@keyframes in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+/* ledger */
+.ledger { display: grid; gap: 0; border-top: 2px solid var(--ink); }
+.stage { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 18px; padding-block: 26px; border-bottom: 1px solid var(--line); }
+.num { font-family: var(--font-display); font-size: 2.6rem; line-height: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stage-body { display: grid; gap: 12px; min-width: 0; }
+.stage-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.chip.script { color: var(--script); } .chip.agent { color: var(--agent); } .chip.you { color: var(--you); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 28px; }
+dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; align-content: start; }
+dt { font-size: .74rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.toolchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.toolchips span { font-family: var(--font-mono); font-size: .76rem; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+.toolchips span b { font-weight: 500; color: var(--muted); margin-left: 3px; }
+.thisrun { background: var(--surface); border-left: 3px solid var(--accent); padding: 10px 14px; display: grid; gap: 6px; }
+.thisrun .nums { display: flex; flex-wrap: wrap; gap: 6px 18px; font-variant-numeric: tabular-nums; font-size: .9rem; }
+blockquote { margin: 0; padding-left: 12px; border-left: 2px solid var(--line); color: var(--muted); max-width: 80ch; }
+.guardnote { border: 1px dashed var(--guard); color: var(--ink); padding: 10px 14px; border-radius: 6px; display: grid; gap: 4px; }
+.guardnote b { color: var(--guard); }
+
+/* loops + totals */
+.loops { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.loop { border: 1px dashed var(--muted); padding: 16px; border-radius: 10px; display: grid; gap: 8px; }
+.loop .path { font-family: var(--font-display); font-size: 1.15rem; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.r, th.r { text-align: right; }
+tfoot td { font-weight: 600; border-top: 2px solid var(--ink); }
+footer { display: grid; gap: 6px; font-size: .9rem; }
+
+@media (max-width: 860px) {
+  .console { grid-template-columns: 1fr; }
+  .stages { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); border-right: 0; border-bottom: 1px solid #ffffff1a; }
+  .stage { grid-template-columns: 1fr; gap: 6px; }
+  .num { font-size: 1.8rem; }
+}
+@media (prefers-reduced-motion: reduce) { .line, .stages li.loop { animation: none; } .bar i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand"><b>EY</b><span class="eyebrow">UAT Studio · Lumen Clinic</span></div>
+    <h1>How a run works, <span class="mark">step by step</span></h1>
+    <p class="muted">A walk through run <code>2026-10-11-1329</code>: the v3 Excel with one changed case (TC-15) and one new case (TC-39) that catches the bug planted in the clinic app's billing. Every agent, skill, tool and script below is what this run actually called, from its saved activity.</p>
+    <div class="facts">
+      <span class="fact">Excel <b>lumen-clinic-tests-v3.xlsx</b></span>
+      <span class="fact"><b>38</b> cases · <b>35</b> automated</span>
+      <span class="fact"><b>33</b> passed · <b>2</b> failed</span>
+      <span class="fact">1 app bug caught · 1 broken test</span>
+      <span class="fact">AI ≈ <b>$1.21</b> (estimate)</span>
+    </div>
+    <div class="legend" aria-label="Legend">
+      <span><i class="kind k-script"></i> Script, no AI</span>
+      <span><i class="kind k-agent"></i> AI agent, with its model</span>
+      <span><i class="kind k-you"></i> You decide</span>
+      <span><i class="kind k-guard"></i> Guard (checks every agent action)</span>
+    </div>
+  </header>
+
+  <section class="replay" aria-labelledby="replay-h">
+    <div><span class="eyebrow">Replay</span><h2 id="replay-h">Watch the run, call by call</h2></div>
+    <div class="controls">
+      <button id="play" class="primary" type="button">Play</button>
+      <button id="next" type="button">Next stage</button>
+      <button id="all" type="button">Show everything</button>
+      <button id="restart" type="button">Restart</button>
+      <span class="speed" role="group" aria-label="Speed">
+        <button type="button" data-speed="1" aria-pressed="true">1×</button>
+        <button type="button" data-speed="2" aria-pressed="false">2×</button>
+        <button type="button" data-speed="4" aria-pressed="false">4×</button>
+      </span>
+      <span class="bar" aria-hidden="true"><i id="bar"></i></span>
+    </div>
+    <div class="console">
+      <ol class="stages" id="rail" aria-label="Stages"></ol>
+      <div class="feed" id="feed" role="log" aria-live="polite" aria-label="What the run called">
+        <div class="intro">
+          <p><b style="color:#fff">Press Play</b> to replay the run in the order it happened. Each line is a real call from the run's activity log: a script, an agent joining with its model, the tools it used, the questions it asked you, and what each stage ended with.</p>
+          <p>Long stretches of browser actions are shortened to their first steps; the count of the rest is shown.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="ledger-h" style="display:grid;gap:14px">
+    <div><span class="eyebrow">The 11 stages</span><h2 id="ledger-h">Who runs each step, and with what</h2></div>
+    <div class="guardnote"><span><b>Before every agent action:</b> <code>scripts/guard_hook.py</code> checks the call against <code>config/guardrails.yaml</code> (the Guardrails page): only the allowed sites, no blocked tools, never <code>.env</code>, and it asks you before clicking anything with <i>delete, remove, send, pay</i>. In this run it refused the planner's <code>browser_evaluate</code> twice.</span></div>
+    <div class="ledger" id="ledger"></div>
+  </section>
+
+  <section aria-labelledby="loops-h" style="display:grid;gap:14px">
+    <div><span class="eyebrow">Loops</span><h2 id="loops-h">Where the flow goes back</h2></div>
+    <div class="loops">
+      <div class="loop">
+        <span class="path">Check steps in the live app → Clarify the cases</span>
+        <p>Steps that do not match the real app (a button with another name, a missing page) go back to the clarifier as questions for you, then the plan is rewritten and checked again. At most 2 rounds (<code>max_planner_rounds</code>).</p>
+        <p class="muted">This run: no mismatches, so no round. On the run page, Clarify shows as running again with "Round 2, from the live app check" while it happens.</p>
+      </div>
+      <div class="loop">
+        <span class="path">Check the tests → Write the tests</span>
+        <p>A test the check rejects goes back to the generator with the reasons. At most 2 attempts per case (<code>max_generate_attempts</code>); a case still rejected after that is reported at sign-off.</p>
+        <p class="muted">This run: TC-15 went back once. The check said <i>"the check does not contain 'Paracetamol 6 on hand'"</i>; the second version was accepted and passed 3 repeat runs.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="totals-h" style="display:grid;gap:14px">
+    <div><span class="eyebrow">Time and cost</span><h2 id="totals-h">This run against the first full run</h2></div>
+    <p class="muted">The first run (<code>2026-10-11-0244</code>, v2 Excel) had to plan and write all 36 tests. The v3 run only checked and wrote the 2 changed or new cases and reused the other tests, so most of the AI cost disappeared. Costs are estimates from tokens and list prices; the first run's are on the high side because its cached input was not counted apart.</p>
+    <div class="tablewrap"><table id="totals">
+      <thead><tr><th>Stage</th><th>Who</th><th class="r">v3 run time</th><th class="r">v3 AI ≈</th><th class="r">First run time</th><th class="r">First run AI ≈</th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td>Total</td><td></td><td class="r"></td><td class="r">$1.21</td><td class="r"></td><td class="r">$14.46</td></tr></tfoot>
+    </table></div>
+  </section>
+
+  <footer class="muted">
+    <span>Where this lives: the stage list and their skills in <code>agentic-testing-kit/config/workflow.yaml</code>; agents in <code>.github/agents/</code>; skills and their scripts in <code>.github/skills/</code>; Studio runs the stages in <code>uat-studio/backend/app/stages_prepare.py</code> and <code>stages_test.py</code>, with each agent's model in <code>catalog.py</code>.</span>
+    <span>Times include waiting for you where a stage asks something. "≈" marks an estimate.</span>
+  </footer>
+</div>
+
+<script>
+const STAGES = [{"id": "preflight", "title": "Check the setup", "who": "Script", "kinds": ["script"], "lead": "Is everything installed, and is the app reachable?", "does": "Checks that Python, Node, Playwright and Chromium are installed, the kit is complete and the start page answers.", "agent": "None in Studio (the Setup page fixes what is missing). In VS Code, <code>uat-setup</code> helps.", "skills": ["checking-setup"], "scripts": "<code>scripts/check_setup.py</code>", "writes": "", "happened": "Setup ready.", "secs": 1, "cost": 0, "firstSecs": 1, "firstCost": 0, "first": "1 s"}, {"id": "intake", "title": "Read the Excel", "who": "Scripts", "kinds": ["script"], "lead": "Read the cases, check the template, and compare with the last run.", "does": "Reads the Excel into cases, checks every row against the agreed template, and sorts each case into unchanged, changed, new or missing compared with the last run.", "agent": "None", "skills": ["reading-uat-excel", "detecting-test-changes"], "scripts": "<code>read_excel.py</code>, <code>validate.py</code> (reading-uat-excel); <code>diff_cases.py</code> (detecting-test-changes)", "writes": "<code>input.xlsx</code>, <code>cases.json</code>, <code>changes.json</code>, <code>changes.md</code>", "happened": "Compared with run 2026-10-11-0244: 36 unchanged, 1 changed (TC-15 now sets paracetamol to 6), 1 new (TC-39).", "secs": 2, "cost": 0, "firstSecs": 2, "firstCost": 0, "first": "2 s"}, {"id": "clarify", "title": "Clarify the cases", "who": "uat-clarifier · Sonnet 5.5", "kinds": ["agent", "you"], "lead": "Make every changed or new case unambiguous, asking you where needed.", "does": "Confirms each uncertain change with you (reuse, generate or regenerate its test), then asks until every changed or new case has exact steps and checkable expected results. Keeps the glossary.", "agent": "<code>uat-clarifier</code> · Claude Sonnet 5.5", "skills": ["detecting-test-changes", "grilling-test-cases", "maintaining-glossary", "writing-questionnaires"], "tools": [["record_answer", 4], ["read_run_file", 2], ["read_kit_file", 2], ["list_run_files", 1], ["confirm_change", 1], ["ask_person", 1]], "scripts": "<code>validate.py</code> after the answers", "asks": "Confirm a change; answer questions about steps and expected results", "writes": "<code>clarifications.md</code>, updated <code>cases.json</code>, <code>GLOSSARY.md</code>; <code>questionnaire.md</code> when the Excel's author must answer", "happened": "Asked you twice: to confirm the TC-15 change, then 4 questions about TC-15 and TC-39, all recorded.", "quote": "TC-15: What should the stock list show after step 3, and should the Low label be gone? → The list shows \"Paracetamol 6 on hand\" and no \"Low\" label.", "secs": 59, "cost": 0.13, "firstSecs": 114, "firstCost": 0.25, "first": "1 min 54 s, AI ≈ $0.25, 1 agent conversation"}, {"id": "plan", "title": "Write the plan", "who": "Scripts", "kinds": ["script"], "lead": "Prove the test accounts log in, then lay the cases out for Playwright.", "does": "Proves each test account in the run logs in, then writes the cases into Playwright's plan layout (one plan per group), one logged-in seed per account, and the list of cases to write tests for.", "agent": "None", "skills": ["setting-up-login", "writing-playwright-plan"], "scripts": "<code>check_login.py</code> (setting-up-login), <code>excel_to_plan.py</code> (writing-playwright-plan)", "writes": "<code>specs/&lt;group&gt;.md</code>, seeds per account, <code>generate-list.json</code>", "happened": "Both accounts logged in. To generate: 2 (TC-39, TC-15); the other 33 tests are reused.", "secs": 14, "cost": 0, "firstSecs": 8, "firstCost": 0, "first": "8 s"}, {"id": "planner_check", "title": "Check steps in the live app", "who": "playwright-test-planner · Sonnet 5.5", "kinds": ["agent"], "lead": "Walk each case in the real app before any test is written.", "does": "Playwright's own planner walks each case's steps in the real app, one group at a time, and reports any step that does not match. Its findings go into the app map. Mismatches go back to clarification.", "agent": "<code>playwright-test-planner</code> · Claude Sonnet 5.5, with Playwright's unmodified instructions and the tools of the Playwright test MCP server (<code>npx playwright run-test-mcp-server</code>). Canvas apps use <code>uat-canvas-specialist</code> (Opus 5.5).", "skills": ["mapping-the-app"], "tools": [["browser_snapshot", 8], ["browser_click", 7], ["browser_type", 3], ["planner_setup_page", 2], ["browser_navigate", 2], ["browser_select_option", 1]], "scripts": "<code>merge_app_map.py</code> per group (mapping-the-app)", "writes": "<code>app-map/app-map.yaml</code>, <code>planner-report-&lt;group&gt;.md</code>", "happened": "Walked the billing and stock cases: 23 browser actions, no mismatches. The guard refused its <code>browser_evaluate</code> twice; it carried on without it.", "secs": 67, "cost": 0.15, "firstSecs": 439, "firstCost": 5.19, "first": "7 min 19 s, AI ≈ $5.19, 10 agent conversations"}, {"id": "generate", "title": "Write the tests", "who": "playwright-test-generator · Sonnet 5.5", "kinds": ["agent"], "lead": "Do each case live and write one Playwright test per case.", "does": "Playwright's own generator does each case live in the browser, one case after another, and writes one test file per case with an expect() for every expected result.", "agent": "<code>playwright-test-generator</code> · Claude Sonnet 5.5, one conversation per case", "tools": [["browser_click", 9], ["browser_snapshot", 8], ["browser_type", 5], ["text_search", 4], ["generator_setup_page", 3], ["browser_navigate", 3], ["generator_read_log", 3], ["generator_write_test", 3]], "scripts": "", "writes": "<code>tests/&lt;group&gt;/TC-xx-….spec.ts</code>", "happened": "3 conversations: TC-39, TC-15, and TC-15 again after the check rejected it (see Loops).", "secs": 82, "cost": 0.31, "firstSecs": 753, "firstCost": 9.0, "first": "12 min 33 s, AI ≈ $9.00, 36 agent conversations"}, {"id": "test_check", "title": "Check the tests", "who": "Scripts", "kinds": ["script"], "lead": "Reject weak tests, then run new tests 3 times to catch flaky ones.", "does": "Rejects tests that prove nothing, fake the server, log in the wrong way or miss an expected result, and sends them back to the generator with the reasons. Then runs each new test 3 times.", "agent": "None", "skills": ["checking-generated-tests", "checking-flakiness"], "scripts": "<code>check_tests.py</code> with <code>config/test-check-rules.yaml</code>; <code>repeat_new_tests.py --times 3</code>", "writes": "<code>test-check.json</code>, <code>flakiness.json</code>", "happened": "Rejected TC-15 once and sent it back; the rewrite was accepted. Both new tests passed 3 of 3 runs.", "quote": "REJECT tests/stock/TC-15…spec.ts: expected result '3. The stock list shows \"Paracetamol 6 on hand\"': the check does not contain 'Paracetamol 6 on hand'", "secs": 75, "cost": 0, "firstSecs": 633, "firstCost": 0, "first": "10 min 33 s"}, {"id": "run", "title": "Run the tests", "who": "Script (Playwright, no AI)", "kinds": ["script"], "lead": "Run every saved test, with no AI involved.", "does": "Runs all saved tests with Playwright, logged in through <code>tests/login.ts</code>. Each test saves a screenshot per step, a trace, a video when it fails, and its console and network errors.", "agent": "None", "skills": null, "scripts": "<code>scripts/run_tests.py</code>", "writes": "<code>evidence/</code> (screenshots, traces, videos, console), results in <code>progress.json</code>", "happened": "35 tests: 33 passed, 2 failed (TC-35 and TC-39).", "secs": 124, "cost": 0, "firstSecs": 63, "firstCost": 0, "first": "1 min 03 s"}, {"id": "failures", "title": "Explain failures", "who": "uat-diagnostician · Opus 5.5", "kinds": ["agent", "you"], "lead": "Decide for each failure: a bug in the app, a broken test, or the environment.", "does": "Reads each failure's error, screenshots and trace, labels the cause, and re-runs a suspected app bug in a fresh browser to confirm it. A broken test is repaired only after your yes, by Playwright's healer, which may not change any expect() line.", "agent": "<code>uat-diagnostician</code> · Claude Opus 5.5; repairs by <code>playwright-test-healer</code> · Opus 5.5", "skills": ["diagnosing-failures", "reproducing-failures"], "tools": [["read_run_file", 14], ["list_run_files", 4], ["record_diagnosis", 2], ["ask_repair", 2], ["write_run_file", 2], ["reproduce", 1]], "scripts": "Around a repair: <code>check_tests.py --snapshot</code> before, <code>--assertion-lock</code> after, then the test again", "asks": "Repair a broken test, or leave it for sign-off", "writes": "<code>diagnoses.json</code>, <code>diagnoses.md</code>", "happened": "TC-39: <b>app broken</b>, reproduced on the first try. TC-35: test broken (its check for \"INV-102\" matches two cells). Asked you whether to repair TC-35.", "quote": "TC-39 · Expected: after paying only INV-100 (Card), INV-102 (Ada Lovelace, €25.00) stays Unpaid with a 'Pay INV-102' button. Happened: status 'Paid INV-100' shown, but the table lists INV-102 as Paid too, so no 'Unpaid' cell exists (step 7). Why: paying one invoice also marks the same patient's other open invoice as paid; the step-6 screenshot shows both were Unpaid just before. No console errors.", "secs": 82, "cost": 0.44, "firstSecs": 345, "firstCost": 0, "first": "5 min 45 s, 1 agent conversation"}, {"id": "screens", "title": "Compare screens", "who": "Script + uat-screen-reviewer · Sonnet 5.5", "kinds": ["script", "agent"], "lead": "Compare every step's screenshot with the baseline run.", "does": "Compares each step screenshot with the same step in the baseline run (the latest run with screenshots, or the one you chose), then the reviewer labels each changed screen explained by a known change, or unexplained. Advisory: it never changes a result.", "agent": "<code>uat-screen-reviewer</code> · Claude Sonnet 5.5", "skills": ["comparing-screens"], "tools": [["view_screen", 24], ["label_screen", 14], ["read_changes", 2]], "scripts": "<code>compare_screens.py --baseline &lt;run&gt;</code>", "writes": "<code>screens.json</code>, difference images in <code>screens/</code>, <code>screens-review.json</code>", "happened": "99 screens compared with run 2026-10-11-0244: 92 unchanged, 7 changed, 6 new. 2 explained (TC-15 now shows 6 on hand), 5 unexplained (TC-04: tiny font-rendering differences).", "secs": 32, "cost": 0.17, "firstSecs": 3, "firstCost": 0, "first": "3 s"}, {"id": "signoff", "title": "Sign off", "who": "Script + uat-reporter · Haiku 5.5 + you", "kinds": ["script", "agent", "you"], "lead": "Check the evidence, recommend, and record your decisions.", "does": "Checks every result has its evidence (a pass without it becomes CONCERNS), writes one line of reasoning per sign-off unit, then you decide each unit and record the manual cases. The run is sealed and results.xlsx written.", "agent": "<code>uat-reporter</code> · Claude Haiku 5.5", "skills": ["verifying-evidence", "tracking-usage", "writing-results-excel"], "scripts": "<code>verify_evidence.py</code>, <code>record_decision.py</code> (seals the run), <code>write_results.py</code>, <code>usage_report.py</code>", "asks": "PASS, CONCERNS, FAIL or WAIVED per sign-off unit (<code>config/signoff.yaml</code>); who did each manual case (TC-19, TC-38) and its result", "writes": "<code>signoff.json</code>, <code>manifest.json</code> (the seal), <code>results.xlsx</code>", "happened": "Evidence checked; Billing went to you with TC-39 as an app bug. Your decisions were recorded and results.xlsx written.", "secs": 247, "cost": 0, "firstSecs": 1446, "firstCost": 0.02, "first": "24 min 06 s, AI ≈ $0.02, 1 agent conversation"}];
+const DEMO = {"preflight": [{"k": "scriptend", "t": "check_setup · exit 0"}, {"k": "done", "t": "setup ready"}], "intake": [{"k": "scriptend", "t": "read_excel · exit 0"}, {"k": "scriptend", "t": "validate · exit 0"}, {"k": "scriptend", "t": "diff_cases · exit 0"}, {"k": "done", "t": "Compared with 2026-10-11-0244: unchanged 36, changed 1, new 1, missing 0"}], "clarify": [{"k": "agent", "t": "uat-clarifier joined", "m": "claude-sonnet-5-5"}, {"k": "tool", "t": "list_run_files", "a": ""}, {"k": "tool", "t": "read_run_file", "a": "changes.json", "n": 2}, {"k": "tool", "t": "read_kit_file", "a": "GLOSSARY.md"}, {"k": "tool", "t": "confirm_change", "a": "TC-15"}, {"k": "ask", "t": "TC-15: changed case"}, {"k": "you", "t": "You answered in the live panel."}, {"k": "tool", "t": "read_kit_file", "a": "app-map/app-map.yaml"}, {"k": "tool", "t": "ask_person", "a": "Clarify TC-15 and TC-39"}, {"k": "ask", "t": "Clarify TC-15 and TC-39"}, {"k": "you", "t": "You answered in the live panel."}, {"k": "tool", "t": "record_answer", "a": "TC-15", "n": 4}, {"k": "say", "t": "- TC-15: clarified. I added the precondition \"Paracetamol is 4 on hand\". The stock list must show \"Paracetamol 6 on han…"}, {"k": "more", "t": "… 2 more steps"}, {"k": "done", "t": "2 case(s) clarified; open: TC-37"}], "plan": [{"k": "scriptend", "t": "check_login · exit 0"}, {"k": "scriptend", "t": "excel_to_plan · exit 0"}, {"k": "done", "t": "To generate: 2 (TC-39, TC-15)"}], "planner_check": [{"k": "agent", "t": "playwright-test-planner joined", "m": "claude-sonnet-5-5"}, {"k": "tool", "t": "planner_setup_page", "a": ""}, {"k": "tool", "t": "browser_navigate", "a": "http://localhost:4173/billing"}, {"k": "tool", "t": "browser_click", "a": ""}, {"k": "tool", "t": "browser_snapshot", "a": ""}, {"k": "tool", "t": "browser_select_option", "a": "['Ada Lovelace']"}, {"k": "tool", "t": "browser_type", "a": "25.00"}, {"k": "tool", "t": "browser_click", "a": ""}, {"k": "tool", "t": "browser_snapshot", "a": ""}, {"k": "tool", "t": "browser_click", "a": ""}, {"k": "tool", "t": "browser_snapshot", "a": ""}, {"k": "tool", "t": "browser_type", "a": "Card"}, {"k": "tool", "t": "browser_click", "a": ""}, {"k": "more", "t": "… 18 more steps"}, {"k": "done", "t": "2 case(s) checked against the live app"}], "generate": [{"k": "agent", "t": "playwright-test-generator joined", "m": "claude-sonnet-5-5"}, {"k": "tool", "t": "file_search", "a": ""}, {"k": "say", "t": "The target file already exists. Let me look at it and similar tests."}, {"k": "tool", "t": "text_search", "a": "TC-39"}, {"k": "tool", "t": "file_search", "a": ""}, {"k": "tool", "t": "generator_setup_page", "a": ""}, {"k": "tool", "t": "text_search", "a": "Raised INV-102"}, {"k": "say", "t": "Let me run the flow live."}, {"k": "tool", "t": "browser_navigate", "a": "http://localhost:4173/billing"}, {"k": "tool", "t": "browser_click", "a": ""}, {"k": "tool", "t": "browser_select_option", "a": "['Ada Lovelace']"}, {"k": "tool", "t": "browser_type", "a": "25.00"}, {"k": "tool", "t": "browser_click", "a": "", "n": 2}, {"k": "more", "t": "… 26 more steps"}, {"k": "done", "t": "2 test(s) written"}], "test_check": [{"k": "scriptend", "t": "check_tests · exit 1"}, {"k": "note", "t": "Back to the generator: TC-15"}, {"k": "scriptend", "t": "check_tests · exit 0"}, {"k": "scriptend", "t": "repeat_new_tests · exit 0"}, {"k": "done", "t": "every test accepted and stable"}], "run": [{"k": "scriptend", "t": "run_tests · exit 0"}, {"k": "done", "t": "35 test(s) run, 2 failed"}], "failures": [{"k": "agent", "t": "uat-diagnostician joined", "m": "claude-opus-5-5"}, {"k": "tool", "t": "read_run_file", "a": "progress.json"}, {"k": "tool", "t": "list_run_files", "a": "", "n": 2}, {"k": "tool", "t": "read_run_file", "a": "diagnoses.json", "n": 7}, {"k": "say", "t": "Before payment, INV-100 and INV-102 are both Unpaid. After paying only INV-100, the page snapshot shows INV-102 marked …"}, {"k": "tool", "t": "record_diagnosis", "a": "TC-39 · app_broken"}, {"k": "tool", "t": "reproduce", "a": "TC-39"}, {"k": "tool", "t": "write_run_file", "a": "diagnoses.md"}, {"k": "say", "t": "TC-35 also shows as failed in progress.json and is labelled test_broken, but no repair decision is recorded for it, so …"}, {"k": "tool", "t": "ask_repair", "a": "TC-35"}, {"k": "ask", "t": "Repair TC-35?"}, {"k": "you", "t": "You answered in the live panel."}, {"k": "tool", "t": "write_run_file", "a": "diagnoses.md"}, {"k": "more", "t": "… 2 more steps"}, {"k": "done", "t": "2 failure(s) diagnosed"}], "screens": [{"k": "scriptend", "t": "compare_screens · exit 0"}, {"k": "agent", "t": "uat-screen-reviewer joined", "m": "claude-sonnet-5-5"}, {"k": "tool", "t": "read_changes", "a": ""}, {"k": "tool", "t": "view_screen", "a": "TC-04-step1.png", "n": 13}, {"k": "tool", "t": "label_screen", "a": "TC-04-step1.png", "n": 7}, {"k": "say", "t": "I labelled all 7 flagged screens: 2 explained and 5 unexplained. - TC-15-step2 and TC-15-step3 (explained): The num…"}, {"k": "end", "t": "uat-screen-reviewer finished · 5 turns"}, {"k": "done", "t": "Compared 99 screen(s) with run 2026-10-11-0244: 7 changed, 92 unchanged, 6 new -> runs/2026-10-11-1329/screen…"}], "signoff": [{"k": "scriptend", "t": "verify_evidence · exit 0"}, {"k": "agent", "t": "uat-reporter joined", "m": "claude-haiku-5-5"}, {"k": "say", "t": "Wrote one line of reasoning for each sign-off unit (Today, Billing, Stock, …)."}, {"k": "end", "t": "uat-reporter finished · 1 turns"}, {"k": "ask", "t": "Sign-off: decide each unit and record the manual cases"}, {"k": "you", "t": "You answered in the live panel."}, {"k": "scriptend", "t": "write_results · exit 0"}, {"k": "done", "t": "results.xlsx written"}]};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtTime = s => s == null ? '—' : s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`;
+const usd = v => v == null ? '—' : v === 0 ? '$0' : v < 0.01 ? '< $0.01' : `$${v.toFixed(2)}`;
+
+// ---------- ledger ----------
+function chips(list) {
+  return `<div class="toolchips">${list.map(([n, c]) => `<span>${esc(n)}${c ? `<b>×${c}</b>` : ''}</span>`).join('')}</div>`;
+}
+function row(label, html) { return html ? `<dt>${label}</dt><dd>${html}</dd>` : ''; }
+$('#ledger').innerHTML = STAGES.map((s, i) => `
+  <article class="stage" id="stage-${s.id}">
+    <div class="num">${String(i + 1).padStart(2, '0')}</div>
+    <div class="stage-body">
+      <div class="stage-title"><h3>${esc(s.title)}</h3>
+        ${s.kinds.map(k => `<span class="chip ${k}">${k === 'script' ? 'Script' : k === 'agent' ? 'AI agent' : 'You decide'}</span>`).join('')}</div>
+      <p>${s.does}</p>
+      <div class="grid2">
+        <dl>
+          ${row('Agent', s.agent)}
+          ${row('Skills', s.skills ? chips(s.skills.map(x => [x])) : '')}
+          ${row('Tools used', s.tools ? chips(s.tools) : '')}
+        </dl>
+        <dl>
+          ${row('Scripts', s.scripts)}
+          ${row('Asks you', s.asks)}
+          ${row('Writes', s.writes)}
+        </dl>
+      </div>
+      <div class="thisrun">
+        <span class="eyebrow">In this run</span>
+        <p>${s.happened}</p>
+        ${s.quote ? `<blockquote>${s.quote}</blockquote>` : ''}
+        <div class="nums"><span>Time <b>${fmtTime(s.secs)}</b></span><span>AI <b>${s.cost ? '≈ ' + usd(s.cost) : 'none'}</b></span>${s.first ? `<span class="muted">First run: ${s.first}</span>` : ''}</div>
+      </div>
+    </div>
+  </article>`).join('');
+
+// ---------- totals ----------
+$('#totals tbody').innerHTML = STAGES.map(s => `<tr><td><a href="#stage-${s.id}" style="color:inherit">${esc(s.title)}</a></td><td>${esc(s.who)}</td>
+  <td class="r">${fmtTime(s.secs)}</td><td class="r">${s.cost ? usd(s.cost) : '—'}</td><td class="r">${fmtTime(s.firstSecs)}</td><td class="r">${s.firstCost ? usd(s.firstCost) : '—'}</td></tr>`).join('');
+
+{ const cells = document.querySelectorAll('#totals tfoot td');
+  const sum = k => STAGES.reduce((n, s) => n + (s[k] || 0), 0);
+  cells[2].textContent = fmtTime(sum('secs')); cells[4].textContent = fmtTime(sum('firstSecs')); }
+
+// ---------- replay ----------
+const TAG = { script: 'script', scriptend: 'script', agent: 'agent', tool: 'tool', guard: 'guard', ask: 'asks you', you: 'you', note: 'loop', say: 'says', end: 'agent', done: 'result', more: '…' };
+const rail = $('#rail'), feed = $('#feed');
+rail.innerHTML = STAGES.map((s, i) => `<li id="rail-${s.id}"><span class="dot">${i + 1}</span><span>${esc(s.title)}<span class="who">${esc(s.who)}</span></span></li>`).join('');
+const queue = [];
+STAGES.forEach((s, si) => {
+  queue.push({ stage: si, head: true });
+  (DEMO[s.id] || []).forEach(e => queue.push({ stage: si, e }));
+});
+let pos = 0, timer = null, speed = 1, started = false;
+
+function lineHtml(e) {
+  let txt = esc(e.t);
+  if (e.k === 'agent' && e.m) txt += ` <span style="opacity:.75">· ${esc(e.m)}</span>`;
+  if (e.k === 'tool') txt = `<b>${esc(e.t)}</b>${e.a ? ` <span style="opacity:.75">${esc(e.a)}</span>` : ''}${e.n > 1 ? ` <span style="opacity:.6">×${e.n}</span>` : ''}`;
+  const cls = e.k === 'scriptend' ? 'script' : e.k;
+  return `<div class="line t-${cls}"><span class="tag">${TAG[e.k] || e.k}</span><span class="txt">${txt}</span></div>`;
+}
+function mark(si, state) {
+  STAGES.forEach((s, i) => {
+    const li = document.getElementById(`rail-${s.id}`);
+    li.classList.toggle('done', i < si || (state === 'done' && i === si));
+    li.classList.toggle('now', i === si && state !== 'done');
+  });
+}
+function step() {
+  if (pos >= queue.length) { stop(); mark(STAGES.length, 'done'); $('#play').textContent = 'Play again'; return false; }
+  if (!started) { feed.innerHTML = ''; started = true; }
+  const item = queue[pos++];
+  const s = STAGES[item.stage];
+  if (item.head) {
+    feed.insertAdjacentHTML('beforeend', `<div class="stagehead">${item.stage + 1}. ${esc(s.title)}</div><div class="lead">${esc(s.lead)}</div>`);
+    mark(item.stage, 'now');
+  } else {
+    feed.insertAdjacentHTML('beforeend', lineHtml(item.e));
+    if (item.e.k === 'done') mark(item.stage, 'done');
+    if (item.e.k === 'note' && /generator/i.test(item.e.t)) {
+      const g = document.getElementById('rail-generate');
+      g.classList.remove('loop'); void g.offsetWidth; g.classList.add('loop');
+    }
+  }
+  feed.scrollTop = feed.scrollHeight;
+  $('#bar').style.width = `${(pos / queue.length) * 100}%`;
+  return true;
+}
+function delay() {
+  const next = queue[pos];
+  const base = next && next.head ? 1100 : next && next.e && (next.e.k === 'say' || next.e.k === 'done' || next.e.k === 'ask') ? 900 : 380;
+  return base / speed;
+}
+function tick() { if (step()) timer = setTimeout(tick, delay()); }
+function stop() { clearTimeout(timer); timer = null; $('#play').textContent = pos >= queue.length ? 'Play again' : 'Play'; }
+$('#play').addEventListener('click', () => {
+  if (timer) { stop(); return; }
+  if (pos >= queue.length) reset();
+  $('#play').textContent = 'Pause'; tick();
+});
+$('#next').addEventListener('click', () => {
+  stop();
+  if (pos >= queue.length) return;
+  do { step(); } while (pos < queue.length && !queue[pos].head);
+});
+$('#all').addEventListener('click', () => { stop(); while (step()) { /* all lines */ } });
+function reset() { stop(); pos = 0; started = false; feed.innerHTML = ''; mark(-1); $('#bar').style.width = '0'; }
+$('#restart').addEventListener('click', () => { reset(); $('#play').textContent = 'Play'; feed.innerHTML = '<div class="intro"><p>Ready. Press Play.</p></div>'; });
+document.querySelectorAll('.speed button').forEach(b => b.addEventListener('click', () => {
+  speed = Number(b.dataset.speed);
+  document.querySelectorAll('.speed button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+</script>

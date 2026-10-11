@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import accounts, baseline, costs, kit, signoff_reset
+from .. import accounts, baseline, costs, kit, loops, signoff_reset
 from ..engine import engine
 from ..events import bus
 from ..interactions import interactions
@@ -125,7 +125,8 @@ def get_run(run_id: str):
     return {"id": run_id, "data": data, "texts": texts, "folders": folders,
             "stages": _stage_rows(data["progress"] or {}), "running": engine.is_running(run_id),
             "pending": interactions.list(run_id), "results_ready": (p / "results.xlsx").exists(),
-            "cost": costs.summarise(data["usage"] or [])}
+            "cost": costs.summarise(data["usage"] or []),
+            "loops": loops.of_run(kit.read_json(p / "studio-state.json", {}) or {}, [s["id"] for s in kit.workflow()["stages"]])}
 
 
 @router.post("/runs/{run_id}/start")

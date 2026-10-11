@@ -1,6 +1,8 @@
-"""The stages that write, check, run and judge the tests: generate, test check, run, console review, failures,
+"""The stages that write, check, run and judge the tests: generate, test check, run, failures,
 screens, sign-off."""
 from __future__ import annotations
+
+from functools import partial
 
 from . import agents, baseline, kit, pw_agents
 from .events import bus
@@ -48,11 +50,14 @@ class TestStages(StageRunner):
                 return "done", f"not accepted after {limit} attempts: {', '.join(sorted(feedback))} (reported at sign-off)"
             for e in retry:
                 attempts[e["test_id"]] = attempts.get(e["test_id"], 0) + 1
+            rounds = state["test_check_rounds"] = state.get("test_check_rounds", 0) + 1
             c.save_state(state)
-            bus.emit(c.run_id, "note", stage=c.stage, text=f"Back to the generator: {', '.join(e['test_id'] for e in retry)}")
-            c.stage = "generate"
-            await self.generate(c, retry, feedback)
-            c.stage = "test_check"
+            which = ", ".join(e["test_id"] for e in retry)
+            bus.emit(c.run_id, "note", stage=c.stage, text=f"Back to the generator: {which}")
+            await self.mark(c, "test_check", "started", f"Back to the generator (round {rounds}): {which} not accepted")
+            await self.redo(c, "generate", f"Round {rounds + 1}, rejected by the test check ({which})",
+                            partial(self.rewrite, c, retry, feedback))
+            await self.mark(c, "test_check", "started", f"Checking again after round {rounds + 1}: {which}")
 
     async def stage_run(self, c: Ctx):
         # Resuming a stopped run skips the tests that already have a result; a retry runs them all again,
@@ -134,3 +139,8 @@ class TestStages(StageRunner):
         if r.code != 0:
             raise StopRun("results.xlsx was not written (see the activity).")
         return "done", "results.xlsx written"
+
+    async def rewrite(self, c: Ctx, retry: list[dict], feedback: dict[str, str]):
+        """The generator again for the tests the check rejected, with its reasons."""
+        await self.generate(c, retry, feedback)
+        return "done", f"{len(retry)} test(s) written again"

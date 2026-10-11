@@ -43,7 +43,8 @@ export type RunSummary = { id: string; excel: string | null; created: string | n
   tests: number; passed: number; failed: number; sealed: boolean; results: boolean; running: boolean; waiting: number; state: RunState;
   cost: number; screens: boolean; baseline: 'chosen' | 'latest' | null };
 export type RunDetail = { id: string; data: RunData; texts: Record<string, string>; folders: string[];
-  stages: StageRow[]; running: boolean; pending: Interaction[]; results_ready: boolean; cost: RunCost };
+  stages: StageRow[]; running: boolean; pending: Interaction[]; results_ready: boolean; cost: RunCost;
+  loops: { from: string; to: string; label: string; count: number }[] };
 /** One line of a cost breakdown: a stage, agent or model, what it cost in US dollars and how many agent calls. */
 export type CostItem = { key: string; cost: number; calls: number; input: number; output: number };
 /** What a run cost. estimated: some usage was recorded before cached tokens were counted apart, so it is the most it cost. */

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { LOOP_GUTTER, StepLoops, loopsText, type StepLoop } from './StepLoops';
 
 export type StepState = 'done' | 'current' | 'waiting' | 'failed' | 'todo' | 'off';
 
@@ -15,7 +16,8 @@ export type StepDef = {
  * A vertical stepper: one step open at a time. The step that needs the person (waiting), or else the one in
  * progress, opens by itself; any other step opens on click. Nothing pops up elsewhere on the page.
  */
-export function Stepper({ steps, label }: { steps: StepDef[]; label: string }) {
+export function Stepper({ steps, label, loops = [] }: { steps: StepDef[]; label: string; loops?: StepLoop[] }) {
+  const list = useRef<HTMLOListElement>(null);
   const focus = steps.find(s => s.state === 'waiting') ?? steps.find(s => s.state === 'failed')
     ?? steps.find(s => s.state === 'current') ?? steps.find(s => s.state === 'todo') ?? steps[steps.length - 1];
   // The person's own pick, remembered with the step the flow was at when they picked. Their pick holds while the
@@ -24,13 +26,19 @@ export function Stepper({ steps, label }: { steps: StepDef[]; label: string }) {
   const [pick, setPick] = useState<{ id: string | undefined; focusAtPick: string | undefined } | null>(null);
   if (pick && focus?.state === 'waiting' && focus.id !== pick.focusAtPick) setPick(null);
   const open = pick ? pick.id : focus?.id;
+  const title = (id: string) => steps.find(s => s.id === id)?.title ?? id;
   return (
-    <ol aria-label={label} className="grid">
-      {steps.map((s, n) => (
-        <StepRow key={s.id} step={s} n={n + 1} last={n === steps.length - 1} open={open === s.id}
-          onToggle={() => setPick({ id: open === s.id ? undefined : s.id, focusAtPick: focus?.id })} />
-      ))}
-    </ol>
+    <div className="relative" style={loops.length ? { paddingLeft: LOOP_GUTTER } : undefined}>
+      {loops.length > 0 && <p className="sr-only">{loopsText(loops, title)}</p>}
+      <ol ref={list} aria-label={label} className="grid">
+        {steps.map((s, n) => (
+          <StepRow key={s.id} step={s} n={n + 1} last={n === steps.length - 1} open={open === s.id}
+            onToggle={() => setPick({ id: open === s.id ? undefined : s.id, focusAtPick: focus?.id })} />
+        ))}
+      </ol>
+      {/* After the list: React hands over the list's ref before this measures it. */}
+      {loops.length > 0 && <StepLoops loops={loops} list={list} />}
+    </div>
   );
 }
 
@@ -62,7 +70,7 @@ function StepRow({ step, n, last, open, onToggle }: { step: StepDef; n: number; 
   return (
     <li ref={ref} className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-x-3">
       {!last && <span aria-hidden className={`absolute left-[15px] top-9 bottom-0 w-0.5 ${step.state === 'done' ? 'bg-good/50' : 'bg-line'}`} />}
-      <span aria-hidden className={`z-[1] mt-2 grid h-8 w-8 place-items-center rounded-full border-2 text-xs font-semibold tnum ${DOT[step.state]}
+      <span aria-hidden data-step-dot={step.id} className={`z-[1] mt-2 grid h-8 w-8 place-items-center rounded-full border-2 text-xs font-semibold tnum ${DOT[step.state]}
         ${step.state === 'current' ? 'ring-4 ring-accent/20' : ''} ${step.state === 'waiting' ? 'animate-pulse' : ''}`}>
         {step.state === 'done' ? '✓' : step.state === 'failed' ? '!' : n}
       </span>
