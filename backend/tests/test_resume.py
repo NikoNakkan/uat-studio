@@ -121,3 +121,35 @@ def test_a_stage_studio_no_longer_has_is_skipped(kit_dir, monkeypatch):
     monkeypatch.setattr(engine, "mark", mark)
     asyncio.run(engine._run_owned("2026-01-05-0000"))
     assert marks == [("console_review", "skipped")]
+
+
+def test_a_loop_back_shows_clarification_running_again(kit_dir, monkeypatch):
+    """Steps that did not match the live app go back to clarification: the stepper must show it running again."""
+    import asyncio
+
+    from app.engine import engine
+    from app.stage_base import Ctx
+
+    (kit_dir / "runs" / "2026-01-07-0000").mkdir(parents=True)
+    marks: list[tuple[str, str, str]] = []
+
+    async def mark(c, sid, status, note=""):
+        marks.append((sid, status, note))
+
+    async def clarify(c, mismatches=""):
+        assert c.stage == "clarify" and "TC-08" in mismatches     # questions belong to the clarify step
+        return "done", "1 case(s) clarified"
+
+    async def plan(c):
+        return "done", "To generate: 1 (TC-08)"
+
+    monkeypatch.setattr(engine, "mark", mark)
+    monkeypatch.setattr(engine, "stage_clarify", clarify)
+    monkeypatch.setattr(engine, "stage_plan", plan)
+    c = Ctx("2026-01-07-0000")
+    c.stage = "planner_check"
+    asyncio.run(engine.loop_back(c, 1, 2, "TC-08", "- TC-08 step 2: no button Save patient"))
+    assert [(s, st) for s, st, _ in marks] == [("planner_check", "started"), ("clarify", "started"), ("clarify", "done"),
+                                               ("plan", "started"), ("plan", "done"), ("planner_check", "started")]
+    assert marks[2][2] == "Round 2, from the live app check (TC-08): 1 case(s) clarified"
+    assert c.stage == "planner_check"

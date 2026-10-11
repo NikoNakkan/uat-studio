@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from functools import partial
 
 from . import agents, kit, pw_agents
 from .events import bus
@@ -114,18 +115,25 @@ class PrepareStages(StageRunner):
             state["planner_rounds"] = rounds
             c.save_state(state)
             limit = c.limits.get("max_planner_rounds", 2)
+            ids = sorted({t for t in re.findall(r"\b[\w.-]+\b", mismatches) if t in {x["test_id"] for x in c.cases()}})
             if rounds > limit:
-                ids = {t for t in re.findall(r"\b[\w.-]+\b", mismatches) if t in {x["test_id"] for x in c.cases()}}
                 cases = c.cases()
                 for case in cases:
                     if case["test_id"] in ids:
                         case["open_questions"] = True
                 kit.write_json(c.run / "cases.json", cases)
                 await self.script(c, "excel_to_plan", c.rel)
-                return "done", f"limit of {limit} planner rounds reached; not generated: {', '.join(sorted(ids))}"
-            bus.emit(c.run_id, "note", stage=c.stage, text=f"Mismatches go back to clarification (round {rounds} of {limit}).")
-            c.stage = "clarify"
-            await self.stage_clarify(c, mismatches)
-            c.stage = "plan"
-            await self.stage_plan(c)
-            c.stage = "planner_check"
+                return "done", f"limit of {limit} planner rounds reached; not generated: {', '.join(ids)}"
+            await self.loop_back(c, rounds, limit, ", ".join(ids) or "some cases", mismatches)
+
+    async def loop_back(self, c: Ctx, rounds: int, limit: int, which: str, mismatches: str) -> None:
+        """Steps that did not match the live app go back to clarification, then the plan is rewritten. Both
+        stages show as running again, with the round, so the stepper never claims clarification is done."""
+        back = f"Back to clarification ({rounds} of {limit}): {which} did not match the app"
+        bus.emit(c.run_id, "note", stage=c.stage, text=back)
+        await self.mark(c, "planner_check", "started", back)
+        again = rounds + 1
+        await self.redo(c, "clarify", f"Round {again}, from the live app check ({which})",
+                        partial(self.stage_clarify, c, mismatches))
+        await self.redo(c, "plan", f"Rewritten after clarification round {again}", partial(self.stage_plan, c))
+        await self.mark(c, "planner_check", "started", f"Checking again after clarification round {again}: {which}")

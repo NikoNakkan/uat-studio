@@ -78,6 +78,19 @@ class StageRunner:
         await kit.run_script("progress", *args)
         bus.emit(c.run_id, "stage", stage=sid, status=status, note=note)
 
+    async def redo(self, c: Ctx, sid: str, label: str, work) -> None:
+        """Do an earlier stage again from inside a later one (a loop back), so the stepper shows it running
+        again instead of done, and records the round in its note."""
+        later = c.stage
+        await self.mark(c, sid, "started", label)
+        c.stage = sid
+        try:
+            outcome = await work()
+            result, note = outcome if isinstance(outcome, tuple) else ("done", "")
+            await self.mark(c, sid, "done" if result == "skipped" else result, f"{label}: {note}" if note else label)
+        finally:
+            c.stage = later
+
     async def usage(self, c: Ctx, agent: str, o: AgentOutcome) -> None:
         if kit.is_on("skill-tracking-usage") and (o.input_tokens or o.output_tokens):
             cache = (["--cache-read-tokens", str(o.cache_read_tokens), "--cache-write-tokens", str(o.cache_write_tokens)]
