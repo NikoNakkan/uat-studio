@@ -10,7 +10,8 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
   const check = r.data.evidence_check;
   const signoff = r.data.signoff ?? { decisions: {}, manual: {} };
   const reasoning = r.data.studio_reasoning ?? {};
-  const sealed = !!r.data.manifest;
+  const manifest = r.data.manifest;
+  const sealed = !!manifest;
   const [by, setBy] = useState(() => localStorageGet('uat-signoff-by'));
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -39,7 +40,7 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
 
   return (
     <div className="grid gap-4">
-      <Card title={sealed ? `Signed off and sealed on ${r.data.manifest.sealed_at}` : `Sign-off per ${check.sign_off_unit}`}
+      <Card title={sealed ? `Signed off and sealed on ${manifest?.sealed_at}` : `Sign-off per ${check.sign_off_unit}`}
         actions={!sealed && <Field label="Decided by" hint={by.trim() ? undefined : 'Enter your name to record decisions.'}>
           <input className={`${inputCls} ${by.trim() ? '' : 'border-warn ring-1 ring-warn/40'}`} value={by} placeholder="Your name" aria-required
             onChange={e => { setBy(e.target.value); localStorageSet('uat-signoff-by', e.target.value); }} /></Field>}>

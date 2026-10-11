@@ -1,3 +1,5 @@
+import type { RunData } from './types/run';
+
 // Thin client for the FastAPI back end. Errors carry the server's own message.
 export class ApiError extends Error {}
 
@@ -27,7 +29,7 @@ export type StageRow = { id: string; feature: string; on: boolean; agent?: strin
   status: string; note: string; at?: string };
 export type RunSummary = { id: string; excel: string; created: string; strictness: string; stages_done: number; stages_total: number;
   current: string | null; tests: number; passed: number; sealed: boolean; results: boolean; running: boolean; waiting: number };
-export type RunDetail = { id: string; data: Record<string, any>; texts: Record<string, string>; folders: string[];
+export type RunDetail = { id: string; data: RunData; texts: Record<string, string>; folders: string[];
   stages: StageRow[]; running: boolean; pending: Interaction[]; results_ready: boolean };
 export type Event = { seq: number; ts: number; type: string; stage?: string; agent?: string; tool?: string; script?: string;
   text?: string; input?: string; code?: number; status?: string; note?: string; reason?: string; interaction?: Interaction;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, runFile, type RunDetail } from '../api';
+import type { CheckedTest, ProgressTest } from '../types/run';
 import { Button, Loading, Notice, Pill, errorText } from '../ui';
 
 /** A test passed when its result says so; everything else (failed, timed out, not run) is worth a look. */
@@ -19,8 +20,8 @@ function useEvidenceFiles(runId: string, folder: string) {
  */
 export function TestEvidence({ runId, r, testId }: { runId: string; r: RunDetail; testId: string }) {
   const d = r.data;
-  const t = d.progress?.tests?.[testId] ?? {};
-  const check = d.evidence_check?.tests?.[testId] ?? {};
+  const t: Partial<ProgressTest> = d.progress?.tests?.[testId] ?? {};
+  const check: Partial<CheckedTest> = d.evidence_check?.tests?.[testId] ?? {};
   const diag = d.diagnoses?.[testId];
   const kase = (d.cases ?? []).find((c: any) => c.test_id === testId);
   const folder = t.evidence ?? 'evidence';
