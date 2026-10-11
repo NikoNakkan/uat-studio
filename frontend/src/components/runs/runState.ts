@@ -1,4 +1,4 @@
-import type { RunState } from '../../api';
+import type { RunState, RunSummary } from '../../api';
 
 /** How each run state reads and looks, everywhere a run is listed. */
 export const RUN_STATE: Record<RunState, { label: string; badge: string; bar: string }> = {
@@ -21,4 +21,14 @@ export function when(created: string | null, fallback: string): string {
   const d = new Date(created);
   if (Number.isNaN(d.getTime())) return fallback;
   return d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+/** The home page's view of the runs: what is going on now, the rest newest first, and the last run that tested. */
+export function splitRuns(runs: RunSummary[]) {
+  const isActive = (r: RunSummary) => r.running || r.state === 'waiting';
+  return {
+    active: runs.filter(isActive),
+    others: runs.filter(r => !isActive(r)),
+    lastTested: runs.find(r => !isActive(r) && r.tests > 0),
+  };
 }

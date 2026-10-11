@@ -1,10 +1,10 @@
 import { Link } from 'react-router';
 import { SavingsCard } from '../components/home/SavingsCard';
 import { RunCard } from '../components/runs/RunCard';
-import { stateOf, when } from '../components/runs/runState';
+import { splitRuns } from '../components/runs/runState';
 import { useEnv, useInteractions, useLoginWritten, useProjects, useRuns, useSettings, useSetupCheck } from '../lib/queries';
 import { COST_NOTE, usd } from '../lib/money';
-import { Card, Empty, QueryGate, useTitle } from '../ui';
+import { Empty, QueryGate, useTitle } from '../ui';
 
 /** The project's home: is it ready, what happened last, what needs the person, and a way to start a run. */
 export function HomePage() {
@@ -17,7 +17,9 @@ export function HomePage() {
   const open = useInteractions();
   const list = runs.data ?? [];
   const latest = list[0];
+  const { active, others, lastTested } = splitRuns(list);
   const waiting = (open.data ?? []).length;
+  const waitingRun = active.find(r => r.waiting > 0);
 
   return (
     <div className="mx-auto grid max-w-5xl gap-5">
@@ -33,32 +35,28 @@ export function HomePage() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Tile label="Runs" value={list.length} />
-        <Tile label="Last run" value={latest ? `${latest.passed}/${latest.tests}` : '—'} note={latest ? 'tests passed' : 'no run yet'} />
-        <Tile label="Waiting for you" value={waiting} tone={waiting ? 'warn' : undefined} to={waiting && latest ? `/runs/${latest.id}` : undefined} />
+        <Tile label="Last tested" value={lastTested ? `${lastTested.passed}/${lastTested.tests}` : '—'} note={lastTested ? 'tests passed' : 'no tests run yet'} />
+        <Tile label="Waiting for you" value={waiting} tone={waiting ? 'warn' : undefined} to={waitingRun ? `/runs/${waitingRun.id}` : undefined} />
         <Tile label="Signed off" value={list.filter(r => r.sealed).length} />
         <Tile label="Spent on AI (est.)" title={COST_NOTE} value={usd(list.reduce((sum, r) => sum + (r.cost ?? 0), 0))} note={latest ? `last run ${usd(latest.cost)}` : undefined} />
       </div>
 
       <QueryGate pending={runs.isPending} error={runs.isError ? runs.error : null} label="Loading runs…">
-        {latest ? (
+        {!list.length && <Empty>No runs yet. Upload your Excel of test cases with New run.</Empty>}
+        {active.length > 0 && (
           <section className="grid gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Latest run</h2>
-            <RunCard run={latest} big />
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{active.length === 1 ? 'Active run' : 'Active runs'}</h2>
+            {active.map(r => <RunCard key={r.id} run={r} big />)}
           </section>
-        ) : <Empty>No runs yet. Upload your Excel of test cases with New run.</Empty>}
-        {list.length > 1 && (
-          <Card title="Earlier runs" actions={<Link to="/runs" className="text-sm text-link hover:underline">All runs →</Link>}>
-            <ul className="divide-y divide-line">
-              {list.slice(1, 6).map(r => (
-                <li key={r.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
-                  <Link to={`/runs/${r.id}`} className="font-medium hover:underline">{when(r.created, r.id)}</Link>
-                  <span className="text-muted">{r.excel}</span>
-                  <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${stateOf(r.state).badge}`}>{stateOf(r.state).label}</span>
-                  <span className="tnum text-muted">{r.passed}/{r.tests} passed</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
+        )}
+        {others.length > 0 && (
+          <section className="grid gap-2">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Latest runs</h2>
+              <Link to="/runs" className="text-sm text-link hover:underline">All runs →</Link>
+            </div>
+            {others.slice(0, 3).map((r, i) => <RunCard key={r.id} run={r} big={!active.length && i === 0} />)}
+          </section>
         )}
         {project && <SavingsCard project={project} runs={list} />}
       </QueryGate>

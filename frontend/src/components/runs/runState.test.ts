@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RUN_STATE, stateOf, when } from './runState';
+import type { RunSummary } from '../../api';
+import { RUN_STATE, splitRuns, stateOf, when } from './runState';
 
 describe('when', () => {
   it('falls back to the run id when the time is missing or unreadable', () => {
@@ -22,5 +23,15 @@ describe('stateOf', () => {
     expect(stateOf(undefined)).toBe(RUN_STATE.not_started);
     expect(stateOf('something new')).toBe(RUN_STATE.not_started);
     expect(stateOf('running')).toBe(RUN_STATE.running);
+  });
+});
+
+describe('splitRuns', () => {
+  const run = (id: string, state: string, running = false, tests = 35) => ({ id, state, running, tests }) as unknown as RunSummary;
+  it('puts running and waiting runs first and finds the last run that actually tested', () => {
+    const s = splitRuns([run('c', 'running', true, 0), run('b', 'waiting', false, 0), run('a', 'signed_off')]);
+    expect(s.active.map(r => r.id)).toEqual(['c', 'b']);
+    expect(s.others.map(r => r.id)).toEqual(['a']);
+    expect(s.lastTested?.id).toBe('a');
   });
 });
