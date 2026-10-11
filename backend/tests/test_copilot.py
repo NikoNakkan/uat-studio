@@ -16,3 +16,13 @@ def test_choosing_copilot_makes_the_ai_ready_without_a_key(client):
     assert client.put("/api/settings", json={"provider": "openai"}).status_code == 422
     client.put("/api/settings", json={"provider": "anthropic"})
     assert client.get("/api/settings").json()["ai_ready"] == before["ai_ready"]
+
+
+def test_a_github_token_is_kept_secret_and_classic_tokens_are_refused(client):
+    r = client.put("/api/settings", json={"github_token": "ghp_classic000000000000000000000000000000"})
+    assert r.status_code == 400 and "classic" in r.json()["detail"]
+    assert client.put("/api/settings", json={"github_token": "hello"}).status_code == 400
+    r = client.put("/api/settings", json={"github_token": "github_pat_11ABCDEFG0123456789_abcdWXYZ"}).json()
+    assert r["github_token_set"] and r["github_token_hint"] == "…WXYZ"
+    assert "github_pat_" not in str(client.get("/api/settings").json())          # never sent back
+    assert not client.put("/api/settings", json={"clear_github_token": True}).json()["github_token_set"]

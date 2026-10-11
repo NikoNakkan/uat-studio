@@ -9,6 +9,7 @@ tool call show live in the activity, as with the Anthropic loop.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 from typing import Any
 
@@ -21,7 +22,7 @@ from .events import bus
 from .llm import MAX_TOOL_TEXT, AgentOutcome, Tool, _call_tool, _summary
 from .settings import STATE_DIR, load_settings
 
-_runtime: dict[str, CopilotClient] = {}           # the one Copilot runtime, started on first use
+_runtime: dict[str, Any] = {}           # the one Copilot runtime, started on first use
 _lock = asyncio.Lock()
 
 
@@ -31,14 +32,22 @@ def copilot_model(model: str) -> str:
 
 
 async def client() -> CopilotClient:
-    """One Copilot runtime for the whole app, started on first use, with its own storage folder."""
+    """One Copilot runtime for the whole app, started on first use, with its own storage folder. It signs in
+    with the GitHub token from Settings when there is one, else with the GitHub CLI's sign-in on this computer;
+    a changed token starts a new runtime."""
+    token = load_settings().effective_github_token()
     async with _lock:
+        if "client" in _runtime and _runtime.get("token") != token:
+            old = _runtime.pop("client")
+            with contextlib.suppress(Exception):
+                await old.stop()
         if "client" not in _runtime:
             folder = STATE_DIR / "copilot"
             folder.mkdir(parents=True, exist_ok=True)
-            c = CopilotClient(mode="empty", base_directory=str(folder))
+            c = (CopilotClient(mode="empty", base_directory=str(folder), github_token=token, use_logged_in_user=False)
+                 if token else CopilotClient(mode="empty", base_directory=str(folder)))
             await c.start()
-            _runtime["client"] = c
+            _runtime["client"], _runtime["token"] = c, token
         return _runtime["client"]
 
 

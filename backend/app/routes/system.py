@@ -24,6 +24,8 @@ class SettingsIn(BaseModel):
     provider: Literal["anthropic", "copilot"] | None = None
     api_key: str | None = None
     clear_api_key: bool = False
+    github_token: str | None = None
+    clear_github_token: bool = False
     models: dict[str, str] | None = None
     default_model: str | None = None
     max_turns: int | None = None
@@ -43,6 +45,10 @@ def put_settings(body: SettingsIn):
         s.api_key = ""
     elif body.api_key:
         s.api_key = body.api_key.strip()
+    if body.clear_github_token:
+        s.github_token = ""
+    elif body.github_token:
+        s.github_token = _checked_github_token(body.github_token)
     if body.models is not None:
         s.choose_models(body.models)
     for field in ("provider", "default_model", "max_turns", "max_output_tokens", "show_agent_browser"):
@@ -50,6 +56,17 @@ def put_settings(body: SettingsIn):
             setattr(s, field, getattr(body, field))
     save_settings(s)
     return s.public()
+
+
+def _checked_github_token(token: str) -> str:
+    """Only the token types Copilot accepts: a classic token (ghp_) is ignored by Copilot, so it is refused here."""
+    token = token.strip()
+    if token.startswith("ghp_"):
+        raise HTTPException(400, "That is a classic token (ghp_), which Copilot does not accept. Create a fine-grained "
+                                 "token (github_pat_) with the Copilot Requests permission.")
+    if not token.startswith(("github_pat_", "gho_", "ghu_")):
+        raise HTTPException(400, "That does not look like a GitHub token. Paste a fine-grained token (github_pat_…).")
+    return token
 
 
 @router.post("/settings/test")

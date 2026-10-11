@@ -62,7 +62,8 @@ export const kitFile = (path: string) => `/api/kit/file?path=${encodeURIComponen
 export type AgentInfo = { job: string; recommended: string; why: string };
 /** A model a person can choose; price is US dollars per million input / output tokens. */
 export type ModelChoice = { id: string; name: string; price: string; use: string };
-export type Settings = { provider: 'anthropic' | 'copilot'; ai_ready: boolean; api_key_set: boolean; api_key_hint: string; api_key_from_env?: boolean; models: Record<string, string>;
+export type Settings = { provider: 'anthropic' | 'copilot'; ai_ready: boolean; api_key_set: boolean;
+  github_token_set: boolean; github_token_hint: string; github_token_from_env: boolean; api_key_hint: string; api_key_from_env?: boolean; models: Record<string, string>;
   agents: Record<string, AgentInfo>; default_model: string; model_choices: ModelChoice[]; max_turns: number; max_output_tokens: number;
   show_agent_browser: boolean; kit_dir: string };
 export type SetupRow = { status: string; item: string; fix: string };

@@ -4,6 +4,7 @@ import { api, type Settings } from '../api';
 import { useAction } from '../lib/useAction';
 import { Button, Card, MsgNotice, QueryGate, fail, ok, type Msg } from '../ui';
 import { ApiKeyBox } from './ApiKey';
+import { CopilotToken } from './CopilotToken';
 
 type Quota = { used: number | null; allowed: number | null; unlimited: boolean; resets: string | null };
 type CopilotStatus = { signed_in: boolean; login: string | null; via: string | null; quota: Record<string, Quota>; error?: string };
@@ -40,7 +41,9 @@ export function AiProviderCard({ settings }: { settings: Settings }) {
         })}
       </div>
       {error && <p className="mt-2 text-sm text-bad">{error}</p>}
-      <div className="mt-4">{settings.provider === 'copilot' ? <CopilotBox /> : <ApiKeyBox settings={settings} />}</div>
+      <div className="mt-4">{settings.provider === 'copilot'
+        ? <div className="grid gap-4"><CopilotBox /><CopilotToken settings={settings} /></div>
+        : <ApiKeyBox settings={settings} />}</div>
     </Card>
   );
 }
@@ -74,8 +77,9 @@ function SignedIn({ s }: { s: CopilotStatus }) {
   const noPremium = premium && !premium.unlimited && !premium.allowed;
   return (
     <div className="grid gap-2 text-sm">
-      <p><span className="mr-2 inline-block h-2 w-2 rounded-full bg-good" aria-hidden />Signed in to GitHub as <b>{s.login}</b>
-        {s.via === 'gh-cli' && <span className="text-muted"> (from the GitHub CLI on this computer)</span>}</p>
+      <p><span className="mr-2 inline-block h-2 w-2 rounded-full bg-good" aria-hidden />{s.login ? <>Signed in to GitHub as <b>{s.login}</b></> : 'Signed in to GitHub'}
+        {s.via === 'gh-cli' ? <span className="text-muted"> (from the GitHub CLI on this computer)</span>
+          : s.via ? <span className="text-muted"> (with the GitHub token)</span> : null}</p>
       <div className="flex flex-wrap gap-x-6 gap-y-1 tnum">
         {premium && <span>Premium requests: <b>{premium.unlimited ? 'unlimited' : `${premium.used ?? 0} of ${premium.allowed ?? 0}`}</b> used</span>}
         {chat && <span>Chat requests: <b>{chat.unlimited ? 'unlimited' : `${chat.used ?? 0} of ${chat.allowed ?? 0}`}</b> used</span>}
@@ -94,9 +98,9 @@ function SignedIn({ s }: { s: CopilotStatus }) {
 function SignIn({ error }: { error?: string }) {
   return (
     <div className="grid gap-2 text-sm">
-      <p><b>Not signed in to GitHub.</b> Sign in once on this computer with the GitHub CLI, then press Check again:</p>
+      <p><b>Not signed in to GitHub.</b> Save a GitHub token below, or sign in once on this computer with the GitHub CLI, then press Check again:</p>
       <code className="w-fit rounded bg-surface-2 px-2 py-1">gh auth login</code>
-      <p className="text-muted">You type your password into GitHub's own page, never into Studio. The account needs a Copilot plan.</p>
+      <p className="text-muted">You type your password into GitHub's own page, never into Studio. The account needs a Copilot plan or a company Copilot seat.</p>
       {error && <p className="text-xs text-bad">{error}</p>}
     </div>
   );

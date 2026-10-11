@@ -27,6 +27,7 @@ DEFAULT_MODEL = SONNET                                             # agents outs
 class Settings(BaseModel):
     provider: Literal["anthropic", "copilot"] = "anthropic"       # who runs the agents: an API key, or a Copilot plan
     api_key: str = ""
+    github_token: str = ""                                         # for Copilot; else the GitHub CLI sign-in
     models: dict[str, str] = Field(default_factory=dict)          # agent -> model id, only where not the recommended one
     default_model: str = DEFAULT_MODEL
     max_turns: int = 60                                            # per agent conversation (run limits, F8)
@@ -47,12 +48,19 @@ class Settings(BaseModel):
     def effective_api_key(self) -> str:
         return self.api_key or os.environ.get("ANTHROPIC_API_KEY", "")
 
+    def effective_github_token(self) -> str:
+        return self.github_token or os.environ.get("COPILOT_GITHUB_TOKEN", "")
+
     def public(self) -> dict:
         key = self.effective_api_key()
+        token = self.effective_github_token()
         return {
             "provider": self.provider,
             "ai_ready": self.provider == "copilot" or bool(key),      # Copilot readiness is checked live (sign-in)
             "api_key_set": bool(key),
+            "github_token_set": bool(token),
+            "github_token_hint": f"…{token[-4:]}" if len(token) > 8 else "",
+            "github_token_from_env": bool(not self.github_token and os.environ.get("COPILOT_GITHUB_TOKEN")),
             "api_key_hint": f"…{key[-4:]}" if len(key) > 8 else "",
             "api_key_from_env": bool(not self.api_key and os.environ.get("ANTHROPIC_API_KEY")),
             "models": {a: self.model_for(a) for a in AGENTS},
