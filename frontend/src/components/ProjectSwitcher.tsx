@@ -1,11 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
+import { useProjects } from '../lib/queries';
 import { useAction } from '../lib/useAction';
 import { Button, Field, inputCls } from '../ui';
-
-type Project = { id: string; name: string; dir: string; current: boolean; runs: number; running: string[]; created: string };
 
 const BROADCAST = 'uat-project-changed';
 
@@ -20,7 +18,7 @@ function announceAndGo(path: string) {
  * login, tests, app map, switches and runs; a run keeps its project even when you switch while it runs.
  */
 export function ProjectSwitcher() {
-  const q = useQuery({ queryKey: ['projects'], queryFn: () => api.get<{ current: string; projects: Project[] }>('/api/projects'), refetchInterval: 10_000 });
+  const q = useProjects();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'list' | 'new' | 'rename'>('list');
   const [name, setName] = useState('');

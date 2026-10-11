@@ -5,6 +5,7 @@ import { applyTheme, readTheme, THEME_KEY, writeTheme, type Theme } from './lib/
 
 import { LiveProvider, LiveRail } from './components/Live';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
+import { HomePage } from './pages/Home';
 import { RunsPage } from './pages/Runs';
 import { RunPage } from './pages/Run';
 import { SetupPage } from './pages/Setup';
@@ -15,6 +16,7 @@ import { SettingsPage } from './pages/Settings';
 // Small line icons (24px grid, drawn with currentColor) so each page is recognisable at a glance.
 const ICONS: Record<string, string> = {
   setup: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z',
+  home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   runs: 'M8 5v14l11-7z',
   knowledge: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zm0 0v14m6-12v14',
   switches: 'M4 8h10m4 0h2M4 16h2m4 0h10M14 6v4m-4 4v4',
@@ -23,10 +25,11 @@ const ICONS: Record<string, string> = {
 
 const NAV_GROUPS: { label?: string; items: { to: string; label: string; icon: string; end?: boolean }[] }[] = [
   { label: 'Testing', items: [
-    { to: '/setup', label: 'Set up', icon: 'setup' },
-    { to: '/', label: 'Test runs', icon: 'runs', end: true },
+    { to: '/', label: 'Home', icon: 'home', end: true },
+    { to: '/runs', label: 'Test runs', icon: 'runs' },
   ] },
   { label: 'This project', items: [
+    { to: '/setup', label: 'Set up', icon: 'setup' },
     { to: '/knowledge', label: 'Knowledge', icon: 'knowledge' },
     { to: '/switches', label: 'Feature switches', icon: 'switches' },
   ] },
@@ -95,7 +98,8 @@ export function App() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
           <main id="main" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 outline-none md:px-8">
             <Routes>
-              <Route path="/" element={<RunsPage />} />
+              <Route path="/" element={<HomePage />} />
+              <Route path="/runs" element={<RunsPage />} />
               <Route path="/runs/:runId" element={<RunPage />} />
               <Route path="/setup" element={<SetupPage />} />
               <Route path="/switches" element={<SwitchesPage />} />

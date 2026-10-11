@@ -1,6 +1,6 @@
 // The data the app shares between pages, each defined once: one query key, one type, one refresh rate.
 import { useQuery } from '@tanstack/react-query';
-import { api, type EnvInfo, type Health, type Interaction, type RunDetail, type RunSummary, type SetupCheck, type Settings } from '../api';
+import { api, type EnvInfo, type Health, type Interaction, type Projects, type RunDetail, type RunSummary, type SetupCheck, type Settings } from '../api';
 
 /** tests/login.ts still holds this sentence until the login agent (or a person) has written it. */
 const LOGIN_TEMPLATE = 'write login() for your app';
@@ -11,6 +11,7 @@ export const useSetupCheck = () => useQuery({ queryKey: ['setup'], queryFn: () =
 export const useEnv = () => useQuery({ queryKey: ['env'], queryFn: () => api.get<EnvInfo>('/api/env') });
 export const useInteractions = () =>
   useQuery({ queryKey: ['interactions'], queryFn: () => api.get<Interaction[]>('/api/interactions'), refetchInterval: 3000 });
+export const useProjects = () => useQuery({ queryKey: ['projects'], queryFn: () => api.get<Projects>('/api/projects'), refetchInterval: 10_000 });
 export const useRuns = () => useQuery({ queryKey: ['runs'], queryFn: () => api.get<RunSummary[]>('/api/runs'), refetchInterval: 4000 });
 export const useRun = (runId: string) =>
   useQuery({ queryKey: ['run', runId], queryFn: () => api.get<RunDetail>(`/api/runs/${runId}`), refetchInterval: 5000 });

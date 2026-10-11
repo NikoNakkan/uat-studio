@@ -31,23 +31,43 @@ def _stage_rows(progress: dict) -> list[dict]:
     return rows
 
 
+def _state(running: bool, waiting: int, sealed: bool, stages: dict, total: int) -> str:
+    """One word for where a run stands, the same on every page."""
+    if waiting:
+        return "waiting"
+    if running:
+        return "running"
+    if sealed:
+        return "signed_off"
+    if any(v.get("status") in ("failed", "waiting_for_person") for v in stages.values()):
+        return "stopped"
+    done = sum(v.get("status") in ("done", "skipped") for v in stages.values())
+    return "not_started" if not stages else "finished" if done >= total else "stopped"
+
+
+def _summary(rid: str) -> dict:
+    p = kit.run_path(rid)
+    prog = kit.read_json(p / "progress.json", {}) or {}
+    stages = prog.get("stages", {})
+    total = len(kit.workflow()["stages"])
+    current = next((s for s, v in reversed(list(stages.items())) if v.get("status") not in ("done", "skipped")), None)
+    tests = prog.get("tests", {})
+    results = [t.get("result") for t in tests.values()]
+    running, waiting, sealed = engine.is_running(rid), len(interactions.list(rid)), (p / "manifest.json").exists()
+    return {"id": rid, "excel": prog.get("excel"), "created": prog.get("created"), "strictness": prog.get("strictness"),
+            "cases": len(kit.read_json(p / "cases.json", []) or []),
+            "stages_done": sum(v.get("status") in ("done", "skipped") for v in stages.values()), "stages_total": total,
+            "current": current, "current_status": stages.get(current, {}).get("status") if current else None,
+            "tests": len(tests), "passed": results.count("passed"),
+            "failed": sum(r in ("failed", "timedOut") for r in results),
+            "sealed": sealed, "results": (p / "results.xlsx").exists(), "running": running, "waiting": waiting,
+            "state": _state(running, waiting, sealed, stages, total)}
+
+
 @router.get("/runs")
 def list_runs():
-    out = []
-    for rid in kit.list_runs():
-        p = kit.run_path(rid)
-        prog = kit.read_json(p / "progress.json", {}) or {}
-        stages = prog.get("stages", {})
-        current = next((s for s, v in reversed(list(stages.items())) if v.get("status") not in ("done", "skipped")), None)
-        tests = prog.get("tests", {})
-        out.append({"id": rid, "excel": prog.get("excel"), "created": prog.get("created"),
-                    "strictness": prog.get("strictness"),
-                    "stages_done": sum(v.get("status") in ("done", "skipped") for v in stages.values()),
-                    "stages_total": len(kit.workflow()["stages"]), "current": current,
-                    "tests": len(tests), "passed": sum(t.get("result") == "passed" for t in tests.values()),
-                    "sealed": (p / "manifest.json").exists(), "results": (p / "results.xlsx").exists(),
-                    "running": engine.is_running(rid), "waiting": len(interactions.list(rid))})
-    return out
+    """Every run of the current project, newest first, with what a list or a dashboard shows of it."""
+    return [_summary(rid) for rid in kit.list_runs()]
 
 
 @router.post("/runs")
