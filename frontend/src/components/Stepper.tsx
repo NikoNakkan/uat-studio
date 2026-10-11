@@ -101,7 +101,8 @@ function StepRow({ step, n, last, open, onToggle }: { step: StepDef; n: number; 
           </div>
               <span aria-hidden className={`mt-1 text-muted transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
             </button>}
-        {open && <div id={bodyId} className="grid gap-4 border-t border-line px-3 py-4">{step.body}</div>}
+        {/* One column no wider than the step: without minmax(0, 1fr) a wide table or picture stretched the page. */}
+        {open && <div id={bodyId} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 border-t border-line px-3 py-4">{step.body}</div>}
       </div>
     </li>
   );
