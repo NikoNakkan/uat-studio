@@ -44,9 +44,9 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
             const on = inPath.has(`${e.from}>${e.to}`);
             const lx = back ? (a.x + b.x) / 2 + W / 2 : (x1 + x2) / 2, ly = back ? Math.max(a.y, b.y) + H + 30 : (y1 + y2) / 2 - 4;
             return (
-              <g key={i} className={on ? 'text-accent' : 'text-line'}>
+              <g key={i} className={on ? 'text-ink' : 'text-line'}>
                 <path d={d} fill="none" stroke="currentColor" strokeWidth={on ? 2.5 : 1.5} markerEnd="url(#arrow)" />
-                {e.from !== START && <text x={lx} y={ly} textAnchor="middle" className={`text-[10px] ${on ? 'fill-accent font-semibold' : 'fill-muted'}`}>
+                {e.from !== START && <text x={lx} y={ly} textAnchor="middle" className={`text-[10px] ${on ? 'fill-ink font-semibold' : 'fill-muted'}`}>
                   {e.label.length > 16 ? e.label.slice(0, 15) + '…' : e.label}</text>}
               </g>
             );
@@ -77,7 +77,7 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
         <div className="grid gap-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-lg font-semibold">{title(selected)}</h3>
-            {page.address && <a href={page.address} target="_blank" rel="noreferrer" className="font-mono text-sm text-accent hover:underline">{page.address}</a>}
+            {page.address && <a href={page.address} target="_blank" rel="noreferrer" className="font-mono text-sm text-link hover:underline">{page.address}</a>}
           </div>
           <div>
             <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">How to get here</div>
@@ -86,7 +86,7 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
               {pathTo(selected, edges).map((e, i) => (
                 <li key={i} className="flex items-center gap-1.5">
                   <span className="text-muted">→</span>
-                  {e.from !== START && e.to !== NAV && <span className="rounded-md border border-accent/40 px-2 py-0.5 text-accent">click “{e.label}”</span>}
+                  {e.from !== START && e.to !== NAV && <span className="rounded-md bg-accent px-2 py-0.5 font-medium text-accent-ink">click “{e.label}”</span>}
                   {e.from !== START && e.to !== NAV && <span className="text-muted">→</span>}
                   <button type="button" onClick={() => e.to !== NAV && setSelected(e.to)} className="rounded-md bg-surface-2 px-2 py-0.5 hover:underline">{title(e.to)}</button>
                 </li>
@@ -110,7 +110,7 @@ export function AppMapView({ pages }: { pages: Record<string, MapPage> }) {
                           <span className={e.name ? 'font-medium' : 'text-muted'}>{e.name || e.control_name || '(no name)'}</span>
                           {e.example_text && <span className="text-muted">“{e.example_text}”</span>}
                           {e.test_id && <span className="font-mono text-[11px] text-muted">test id {e.test_id}</span>}
-                          {target && <button type="button" onClick={() => setSelected(target)} className="text-xs text-accent hover:underline">opens {title(target)} →</button>}
+                          {target && <button type="button" onClick={() => setSelected(target)} className="text-xs text-link hover:underline">opens {title(target)} →</button>}
                         </li>
                       );
                     })}

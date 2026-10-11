@@ -116,7 +116,7 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
             onClick={() => post('complete', `/api/runs/${runId}/signoff/complete`, {})}>{busyKey === 'complete' ? 'Closing…' : 'Close sign-off and write results'}</Button>
         </Card>
       )}
-      {r.results_ready && <a className="justify-self-start rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
+      {r.results_ready && <a className="justify-self-start rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink hover:brightness-95" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
       {info && <pre role="status" className="text-sm text-good">{info}</pre>}
       {error && <pre role="alert" className="text-sm text-bad">{error}</pre>}
     </div>

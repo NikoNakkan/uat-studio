@@ -65,14 +65,14 @@ export function ProjectSwitcher() {
   return (
     <div ref={box} className="relative px-2 pb-2">
       <button type="button" onClick={() => { setOpen(!open); setMode('list'); setMsg(''); }} aria-expanded={open} aria-haspopup="dialog"
-        className="flex w-full items-center gap-2 rounded-md border border-line bg-surface-2/60 px-2.5 py-2 text-left hover:border-accent">
-        <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center rounded bg-accent/15 text-[11px] font-semibold text-accent">
+        className="flex w-full items-center gap-2 rounded-md border border-rail-line bg-rail-hover px-2.5 py-2 text-left text-rail-ink hover:border-accent">
+        <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center bg-accent text-[11px] font-bold text-accent-ink">
           {(current?.name ?? '?').slice(0, 2).toUpperCase()}</span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[10px] uppercase tracking-wide text-muted">Project</span>
+          <span className="block text-[10px] uppercase tracking-wide text-rail-muted">Project</span>
           <span className="block truncate text-sm font-semibold">{q.isPending ? 'Loading…' : current?.name ?? 'No project'}</span>
         </span>
-        <span aria-hidden className="text-muted">▾</span>
+        <span aria-hidden className="text-rail-muted">▾</span>
       </button>
 
       {open && place && createPortal(

@@ -72,7 +72,7 @@ function ItemView({ item, openIds }: { item: Item; openIds: Set<string> }) {
     case 'stage':
       return <Divider><b>{e.stage}</b> <Pill value={e.status ?? '-'} />{e.note ? <span className="text-muted"> {e.note}</span> : null}</Divider>;
     case 'agent_start':
-      return <Meta e={e}><b className="text-accent">{e.agent}</b> joined · {e.model}</Meta>;
+      return <Meta e={e}><b className="bg-accent px-1 text-accent-ink">{e.agent}</b> joined · {e.model}</Meta>;
     case 'agent_text':
       return <AgentBubble e={e}><div className="whitespace-pre-wrap">{e.text}</div></AgentBubble>;
     case 'agent_end':

@@ -14,7 +14,7 @@ export function TestsView({ d }: { d: RunData }) {
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <Card title="Test check">
         {Object.keys(checks).length ? <Table head={['Test file', 'Verdict', 'Stable', 'Problems']} rows={Object.entries(checks).map(([path, c]) => [
-          <button className="font-mono text-left text-accent hover:underline" onClick={() => setOpen(path)}>{path}</button>,
+          <button className="font-mono text-left text-link hover:underline" onClick={() => setOpen(path)}>{path}</button>,
           <Pill value={c.ok ? 'ACCEPT' : 'REJECT'} />,
           flaky[c.test_id] ? <Pill value={flaky[c.test_id].verdict} label={`${flaky[c.test_id].passed}/${flaky[c.test_id].runs}`} /> : '—',
           <ul className="text-xs">{c.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>,

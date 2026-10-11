@@ -72,7 +72,7 @@ function Config() {
       <Card title="Files">
         <QueryGate pending={list.isPending} error={list.isError ? list.error : null} label="Loading rule files…">
           <ul className="grid gap-1 text-sm">{(list.data ?? []).map(f => (
-            <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-accent hover:underline'}`} onClick={() => setName(f.name)}>{f.name}</button></li>
+            <li key={f.name}><button className={`font-mono ${f.name === name ? 'font-semibold text-ink' : 'text-link hover:underline'}`} onClick={() => setName(f.name)}>{f.name}</button></li>
           ))}</ul>
         </QueryGate>
         <p className="mt-3 text-xs text-muted">Feature switches are changed on their own page.</p>
@@ -93,7 +93,7 @@ function TestFiles() {
         <QueryGate pending={list.isPending} error={list.isError ? list.error : null} label="Loading test files…">
           {list.data?.length ? <ul className="grid gap-1 font-mono text-xs">{list.data.map(t => (
             <li key={t.path} className="flex items-center gap-2">
-              <button className={`text-left hover:underline ${open === t.path ? 'font-semibold text-ink' : 'text-accent'}`} aria-current={open === t.path ? 'true' : undefined} onClick={() => setOpen(t.path)}>{t.path}</button>
+              <button className={`text-left hover:underline ${open === t.path ? 'font-semibold text-ink' : 'text-link'}`} aria-current={open === t.path ? 'true' : undefined} onClick={() => setOpen(t.path)}>{t.path}</button>
               {t.removed && <Pill value="-" label="removed" />}
             </li>))}</ul> : <Empty>No test files.</Empty>}
         </QueryGate>

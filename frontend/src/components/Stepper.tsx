@@ -74,7 +74,7 @@ function StepRow({ step, n, last, open, onToggle }: { step: StepDef; n: number; 
               <span className={`font-semibold ${step.state === 'todo' || step.state === 'off' ? 'text-muted' : 'text-ink'}`}>{step.title}</span>
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${step.state === 'waiting' ? 'bg-warn/15 text-warn'
                 : step.state === 'failed' ? 'bg-bad/15 text-bad' : step.state === 'done' ? 'bg-good/15 text-good'
-                : step.state === 'current' ? 'bg-accent/15 text-accent' : 'bg-surface-2 text-muted'}`}>{WORD[step.state]}</span>
+                : step.state === 'current' ? 'bg-accent text-accent-ink' : 'bg-surface-2 text-muted'}`}>{WORD[step.state]}</span>
             </div>
             {step.summary && <div className="mt-0.5 text-sm text-muted">{step.summary}</div>}
           </div>

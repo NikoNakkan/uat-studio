@@ -129,7 +129,7 @@ type Pick = { byId: Record<string, Item>; onSelect: (id: string) => void };
 
 /** A part's name that selects it. */
 function PartLink({ id, byId, onSelect }: Pick & { id: string }) {
-  return <button className="text-accent hover:underline" onClick={() => onSelect(id)}>{byId[id]?.name ?? id}</button>;
+  return <button className="text-link hover:underline" onClick={() => onSelect(id)}>{byId[id]?.name ?? id}</button>;
 }
 
 /** What a part needs, and what those need in turn (each part once per branch). */

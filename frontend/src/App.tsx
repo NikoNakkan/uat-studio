@@ -50,20 +50,21 @@ export function App() {
       refresh={runId ? [['run', runId], ['interactions']] : [['interactions']]} scope={runId ? 'run' : 'app'}>
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow">Skip to content</a>
-      <aside className="shrink-0 border-b border-line bg-surface md:h-full md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
-        <div className="flex items-center gap-2 px-4 py-3">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-accent-ink font-mono text-xs font-semibold">UAT</span>
+      <aside className="shrink-0 border-b border-rail-line bg-rail text-rail-ink md:h-full md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
+        <div className="h-1 bg-accent" aria-hidden />
+        <div className="flex items-center gap-2.5 px-4 py-3">
+          <span className="grid h-8 w-8 place-items-center bg-accent text-[13px] font-bold tracking-tight text-accent-ink">EY</span>
           <div><div className="font-semibold leading-tight">UAT Studio</div>
-            <div className="text-xs text-muted leading-tight">Excel in · evidence out</div></div>
+            <div className="text-xs leading-tight text-rail-muted">Excel in · evidence out</div></div>
         </div>
         <ProjectSwitcher />
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:gap-3 md:pb-4" aria-label="Pages">
           {NAV_GROUPS.map((g, gi) => (
-            <div key={gi} className={`flex gap-1 md:flex-col ${!g.label ? 'md:mt-auto md:border-t md:border-line md:pt-3' : ''}`}>
-              {g.label && <div className="hidden px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted md:block">{g.label}</div>}
+            <div key={gi} className={`flex gap-1 md:flex-col ${!g.label ? 'md:mt-auto md:border-t md:border-rail-line md:pt-3' : ''}`}>
+              {g.label && <div className="hidden px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-rail-muted md:block">{g.label}</div>}
               {g.items.map(n => (
                 <NavLink key={n.to} to={n.to} end={n.end}
-                  className={({ isActive }) => `flex items-center gap-2.5 whitespace-nowrap rounded-md px-3 py-2 text-sm ${isActive ? 'bg-accent-soft font-medium text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink'}`}>
+                  className={({ isActive }) => `flex items-center gap-2.5 whitespace-nowrap rounded-md px-3 py-2 text-sm ${isActive ? 'bg-accent font-semibold text-accent-ink' : 'text-rail-muted hover:bg-rail-hover hover:text-rail-ink'}`}>
                   <NavIcon name={n.icon} />
                   {n.label}
                 </NavLink>
@@ -81,7 +82,7 @@ export function App() {
             ? <Status pending label="Checking for questions…" />
             : open.data?.length
               ? <Link to={open.data[0].channel === 'app' ? '/setup' : `/runs/${open.data[0].channel}`}
-                  className="rounded bg-warn/15 px-2 py-1 font-medium text-warn hover:bg-warn/25">{open.data.length} waiting for you →</Link>
+                  className="rounded bg-accent px-2 py-1 font-semibold text-accent-ink hover:brightness-95">{open.data.length} waiting for you →</Link>
               : null}
         </div>
       </aside>

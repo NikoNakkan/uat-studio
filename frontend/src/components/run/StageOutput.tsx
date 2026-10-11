@@ -21,7 +21,7 @@ export function stageOutput(id: string, runId: string, r: RunDetail, visual: { f
     case 'console_review': return d.console_new || r.texts['console.md'] ? <ConsoleView r={r} /> : null;
     case 'failures': return d.diagnoses ? <FailuresView r={r} /> : null;
     case 'screens': return d.screens ? <>
-      {visual.focus && <p className="text-sm">Showing {visual.focus} only · <button className="text-accent hover:underline" onClick={() => visual.setFocus(null)}>show every test</button></p>}
+      {visual.focus && <p className="text-sm">Showing {visual.focus} only · <button className="text-link hover:underline" onClick={() => visual.setFocus(null)}>show every test</button></p>}
       <VisualRegression runId={runId} focus={visual.focus} />
     </> : null;
     case 'signoff': return d.evidence_check ? <Signoff runId={runId} r={r} /> : null;

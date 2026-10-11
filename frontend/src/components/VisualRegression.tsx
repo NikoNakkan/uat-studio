@@ -63,7 +63,7 @@ function TestCard({ t, mode, onlyChanged }: { t: TestShots; mode: Mode; onlyChan
   return (
     <Card title={<span className="flex flex-wrap items-center gap-2"><span className="font-mono">{t.test_id}</span> {t.title}
       {t.result && <Pill value={t.result} />}{t.recommendation && <Pill value={t.recommendation} />}</span>}
-      actions={<button className="text-sm text-accent hover:underline" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'Hide' : 'Show'} {t.steps.length} screen(s)</button>}>
+      actions={<button className="text-sm text-link hover:underline" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'Hide' : 'Show'} {t.steps.length} screen(s)</button>}>
       <div className="flex flex-wrap gap-2 text-xs">
         {t.counts.changed > 0 && <Pill value="CONCERNS" label={`${t.counts.changed} changed`} />}
         {t.counts.unchanged > 0 && <Pill value="ok" label={`${t.counts.unchanged} unchanged`} />}

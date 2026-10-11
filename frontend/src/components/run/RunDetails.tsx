@@ -52,7 +52,7 @@ export function FilesView({ runId }: { runId: string }) {
     <Card title="Every file of this run">
       <QueryGate pending={files.isPending} error={files.isError ? files.error : null} label="Loading files…">
         {files.data?.length
-          ? <ul className="grid gap-0.5 font-mono text-xs">{files.data.map(f => <li key={f}><a className="text-accent hover:underline" href={runFile(runId, f)} target="_blank" rel="noreferrer">{f}</a></li>)}</ul>
+          ? <ul className="grid gap-0.5 font-mono text-xs">{files.data.map(f => <li key={f}><a className="text-link hover:underline" href={runFile(runId, f)} target="_blank" rel="noreferrer">{f}</a></li>)}</ul>
           : <Empty>This run has no files yet.</Empty>}
       </QueryGate>
     </Card>

@@ -52,7 +52,7 @@ export function TestEvidence({ runId, r, testId }: { runId: string; r: RunDetail
             try { await api.post(`/api/runs/${runId}/open-trace`, { path: trace }); setMsg('The trace viewer opens in a new window on this machine.'); }
             catch (e) { setMsg(errorText(e)); } finally { setOpening(false); }
           }}>{opening ? 'Opening…' : 'Open trace'}</Button>}
-          {video && <a className="rounded-md px-2 py-1 text-sm text-accent hover:underline" href={runFile(runId, video)} target="_blank" rel="noreferrer">Video</a>}
+          {video && <a className="rounded-md px-2 py-1 text-sm text-link hover:underline" href={runFile(runId, video)} target="_blank" rel="noreferrer">Video</a>}
         </span>
       </div>
       {msg && <p className="text-xs text-muted">{msg}</p>}

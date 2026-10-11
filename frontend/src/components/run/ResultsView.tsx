@@ -30,7 +30,7 @@ export function ResultsView({ runId, r, onVisual }: { runId: string; r: RunDetai
             <Pill value={tests[id]?.result ?? check[id]?.result ?? '-'} />,
             check[id] ? <Pill value={check[id].recommendation} /> : '—',
             <span className="whitespace-nowrap tnum">{check[id]?.screenshots ?? '—'}</span>,
-            screens.length ? <button className="whitespace-nowrap text-accent hover:underline" onClick={() => onVisual(id)}>{changed} changed of {screens.length}</button> : '—',
+            screens.length ? <button className="whitespace-nowrap text-link hover:underline" onClick={() => onVisual(id)}>{changed} changed of {screens.length}</button> : '—',
             <span className="text-xs">{[...(check[id]?.reasons ?? []), ...(check[id]?.missing ?? []), tests[id]?.error].filter(Boolean).join('; ')}</span>,
             tests[id]?.result
               ? <Button kind={isProblem(tests[id].result) ? 'primary' : 'default'} onClick={() => setOpen(open === id ? null : id)}>{open === id ? 'Hide' : 'Evidence'}</Button>

@@ -1,32 +1,46 @@
 @import "tailwindcss";
 
-/* Layout: a working instrument panel. Left rail for places, the work in the middle, a live agent panel on the right. */
+/*
+  EY theme. Yellow (#FFE600) is a fill and an underline, never body text on white.
+  Off-black (#2E2E38) is the type and the navigation rail.
+  Barlow stands in for EY Interstate, which is a licensed face and is not bundled here.
+*/
 :root {
-  --bg: #f2f4f3;
+  --bg: #f6f6fa;
   --surface: #ffffff;
-  --surface-2: #eaeeec;
-  --ink: #16201d;
-  --muted: #5a6763;
-  --line: #d5dcd9;
-  --accent: #0f6b5f;
-  --accent-ink: #ffffff;
-  --accent-soft: #dcefeb;
-  --good: #1d7a4b;
-  --warn: #9a5800;
+  --surface-2: #e7e7ea;
+  --ink: #2e2e38;
+  --muted: #747480;
+  --line: #d6d6de;
+  --accent: #ffe600;
+  --accent-ink: #2e2e38;
+  --accent-soft: #fff3a3;
+  --link: #2e2e38;
+  --good: #146c43;
+  --warn: #8a5a00;
   --bad: #b42318;
-  --info: #2f5fb3;
+  --info: #0c4f93;
+  --rail: #2e2e38;
+  --rail-ink: #f6f6fa;
+  --rail-muted: #c4c4cd;
+  --rail-line: #45454f;
+  --rail-hover: #3a3a46;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0d1211; --surface: #141b19; --surface-2: #1b2421; --ink: #e2eae7; --muted: #94a29d; --line: #29342f;
-    --accent: #3fb4a3; --accent-ink: #052019; --accent-soft: #163631; --good: #4cc28a; --warn: #e3a14f; --bad: #f07a6b; --info: #7ea6f2;
+    --bg: #1a1a22; --surface: #2e2e38; --surface-2: #3a3a46; --ink: #f6f6fa; --muted: #c4c4cd; --line: #4e4e5a;
+    --accent: #ffe600; --accent-ink: #2e2e38; --accent-soft: #4a4520; --link: #ffe600;
+    --good: #5cdb97; --warn: #f0b429; --bad: #ff8a82; --info: #8ebeff;
+    --rail: #121218; --rail-ink: #f6f6fa; --rail-muted: #c4c4cd; --rail-line: #3a3a46; --rail-hover: #2a2a34;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0d1211; --surface: #141b19; --surface-2: #1b2421; --ink: #e2eae7; --muted: #94a29d; --line: #29342f;
-  --accent: #3fb4a3; --accent-ink: #052019; --accent-soft: #163631; --good: #4cc28a; --warn: #e3a14f; --bad: #f07a6b; --info: #7ea6f2;
+  --bg: #1a1a22; --surface: #2e2e38; --surface-2: #3a3a46; --ink: #f6f6fa; --muted: #c4c4cd; --line: #4e4e5a;
+  --accent: #ffe600; --accent-ink: #2e2e38; --accent-soft: #4a4520; --link: #ffe600;
+  --good: #5cdb97; --warn: #f0b429; --bad: #ff8a82; --info: #8ebeff;
+  --rail: #121218; --rail-ink: #f6f6fa; --rail-muted: #c4c4cd; --rail-line: #3a3a46; --rail-hover: #2a2a34;
   color-scheme: dark;
 }
 
@@ -40,18 +54,27 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-link: var(--link);
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
   --color-info: var(--info);
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --color-rail: var(--rail);
+  --color-rail-ink: var(--rail-ink);
+  --color-rail-muted: var(--rail-muted);
+  --color-rail-line: var(--rail-line);
+  --color-rail-hover: var(--rail-hover);
+  --font-sans: "Barlow", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
 html, body, #root { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 14px; }
 h1, h2, h3 { text-wrap: balance; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+main h1 { position: relative; width: fit-content; max-width: 100%; padding-bottom: 0.35rem; }
+main h1::after { content: ""; position: absolute; left: 0; bottom: 0; width: 2rem; height: 3px; background: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 1px var(--ink); }
+a:hover, button:hover { text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 0.15em; }
 .tnum { font-variant-numeric: tabular-nums; }
 .live-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 50%, transparent) transparent; overflow-wrap: anywhere; }
 .live-scroll::-webkit-scrollbar { width: 8px; height: 8px; }

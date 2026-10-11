@@ -26,7 +26,7 @@ export function Meta({ e, children }: { e: Event; children: ReactNode }) {
 
 function Avatar({ name }: { name: string }) {
   const short = name.replace(/^(uat|playwright-test)-/, '').slice(0, 2).toUpperCase();
-  return <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">{short}</span>;
+  return <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-[10px] font-bold text-accent-ink">{short}</span>;
 }
 
 export function AgentBubble({ e, tone, children }: { e: Event; tone?: 'bad' | 'warn'; children: ReactNode }) {

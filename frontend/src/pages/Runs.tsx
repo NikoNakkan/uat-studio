@@ -30,7 +30,7 @@ export function RunsPage() {
       summary: ready ? 'API key, machine, accounts and login are ready.' : 'Once per machine and app: API key, test accounts and login.',
       body: <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         <p className="text-muted">{ready ? 'Everything is set up. Open it again to change accounts or login.' : 'A few steps, each opens when it is its turn.'}</p>
-        <Link to="/setup" className="rounded-md bg-accent px-3 py-1.5 font-medium text-accent-ink">{ready ? 'Review set up' : 'Set up now →'}</Link>
+        <Link to="/setup" className="rounded-md bg-accent px-3 py-1.5 font-semibold text-accent-ink hover:brightness-95">{ready ? 'Review set up' : 'Set up now →'}</Link>
       </div>,
     },
     {
@@ -91,9 +91,9 @@ function NewRun() {
       </form>
       {error && <Notice>{error}</Notice>}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        <a className="text-accent hover:underline" href="/api/kit/template">Download the Excel template</a>
+        <a className="text-link hover:underline" href="/api/kit/template">Download the Excel template</a>
         <QueryGate pending={examples.isPending} error={examples.isError ? examples.error : null} label="Loading examples…">
-          {examples.data?.map(x => <a key={x} className="text-accent hover:underline" href={`/api/kit/examples/${x}`}>Example: {x}</a>)}
+          {examples.data?.map(x => <a key={x} className="text-link hover:underline" href={`/api/kit/examples/${x}`}>Example: {x}</a>)}
         </QueryGate>
       </div>
     </div>
@@ -105,7 +105,7 @@ function AllRuns({ runs }: { runs: { isPending: boolean; isError: boolean; error
     <QueryGate pending={runs.isPending} error={runs.isError ? runs.error : null} label="Loading runs…">
       {runs.data?.length ? (
         <Table head={['Run', 'Excel', 'Stages', 'Tests passed', 'State', '']} rows={runs.data.map(r => [
-          <Link className="font-mono text-accent hover:underline" to={`/runs/${r.id}`}>{r.id}</Link>,
+          <Link className="font-mono text-link hover:underline" to={`/runs/${r.id}`}>{r.id}</Link>,
           r.excel,
           <span className="tnum">{r.stages_done}/{r.stages_total}{r.current ? <span className="text-muted"> · {r.current}</span> : null}</span>,
           <span className="tnum">{r.passed}/{r.tests}</span>,
@@ -113,7 +113,7 @@ function AllRuns({ runs }: { runs: { isPending: boolean; isError: boolean; error
             {r.running && <Pill value="running" />}
             {r.waiting > 0 && <Link to={`/runs/${r.id}`}><Pill value="waiting" label={`${r.waiting} waiting for you`} /></Link>}
             {r.sealed && <Pill value="done" label="signed off" />}
-            {r.results && <a className="text-xs text-accent hover:underline" href={`/api/runs/${r.id}/results.xlsx`}>results.xlsx</a>}
+            {r.results && <a className="text-xs text-link hover:underline" href={`/api/runs/${r.id}/results.xlsx`}>results.xlsx</a>}
           </div>,
           <RunActions runId={r.id} running={r.running} sealed={r.sealed} size="small" />,
         ])} />

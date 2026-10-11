@@ -73,9 +73,9 @@ export function Button({ children, onClick, kind = 'default', disabled, busy = f
 }) {
   const styles = {
     default: 'border border-line bg-surface hover:bg-surface-2 text-ink',
-    primary: 'bg-accent text-accent-ink hover:opacity-90',
+    primary: 'bg-accent font-semibold text-accent-ink hover:brightness-95',
     danger: 'border border-bad text-bad hover:bg-bad/10',
-    ghost: 'text-accent hover:bg-accent-soft',
+    ghost: 'text-link hover:bg-accent-soft',
   }[kind];
   return (
     <button type={type} title={title} onClick={onClick} disabled={disabled || busy} aria-busy={busy || undefined}

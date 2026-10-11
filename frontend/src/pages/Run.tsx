@@ -58,7 +58,7 @@ function RunHeader({ runId, r }: { runId: string; r: RunDetail }) {
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/" className="text-sm text-accent hover:underline">← Test runs</Link>
+          <Link to="/" className="text-sm text-link hover:underline">← Test runs</Link>
           <h1 className="font-mono text-lg font-semibold">{r.id}</h1>
           <p className="text-sm text-muted">{prog.excel} · strictness {prog.strictness}{prog.excel_sha256 ? ` · SHA-256 ${prog.excel_sha256.slice(0, 12)}…` : ''}</p>
         </div>
@@ -70,7 +70,7 @@ function RunHeader({ runId, r }: { runId: string; r: RunDetail }) {
             {busy === 'retry' ? 'Retrying…' : `Retry "${STAGES[failedStage.id]?.title ?? failedStage.id}"`}</Button>}
           {r.data.cases && <a className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2" href={`/api/runs/${runId}/clarified.xlsx`}
             title="The cases as clarified, in the template: paste them back into your Excel">Clarified Excel</a>}
-          {r.results_ready && <a className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
+          {r.results_ready && <a className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink hover:brightness-95" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
         </div>
       </div>
       {error && <Notice>{error}</Notice>}
