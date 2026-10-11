@@ -33,6 +33,9 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
   };
   const units = Object.entries(check.units ?? {}) as [string, any][];
   const manual = Object.entries(check.tests ?? {}).filter(([, t]: any) => t.recommendation === 'MANUAL') as [string, any][];
+  const decidedUnits = units.filter(([unit]) => signoff.decisions?.[unit]).length;
+  const recordedManual = manual.filter(([id]) => signoff.manual?.[id]).length;
+  const readyToClose = decidedUnits === units.length && recordedManual === manual.length;
 
   return (
     <div className="grid gap-4">
@@ -100,7 +103,21 @@ export function Signoff({ runId, r }: { runId: string; r: RunDetail }) {
       {!sealed && (
         <Card title="Close the sign-off">
           <p className="mb-3 text-sm text-muted">Closing seals the run: every file the decisions rest on is hashed into manifest.json and results.xlsx is written. New results need a new run.</p>
-          <Button kind="primary" busy={busyKey === 'complete'} disabled={!!busyKey} onClick={() => post('complete', `/api/runs/${runId}/signoff/complete`, {})}>{busyKey === 'complete' ? 'Closing…' : 'Close sign-off and write results'}</Button>
+          <ul className="mb-3 grid gap-1 text-sm" aria-label="Before closing">
+            {[
+              { done: !!by.trim(), text: by.trim() ? `Decided by: ${by.trim()}` : 'Enter your name in "Decided by" at the top' },
+              { done: decidedUnits === units.length, text: `Groups recorded: ${decidedUnits} of ${units.length} (press Record on each row)` },
+              ...(manual.length ? [{ done: recordedManual === manual.length, text: `Manual cases recorded: ${recordedManual} of ${manual.length}` }] : []),
+            ].map(c => (
+              <li key={c.text} className={`flex items-center gap-2 ${c.done ? 'text-good' : 'text-ink'}`}>
+                <span aria-hidden className={`grid h-4 w-4 place-items-center rounded-full text-[10px] ${c.done ? 'bg-good text-white' : 'border border-line'}`}>{c.done ? '✓' : ''}</span>
+                {c.text}
+              </li>
+            ))}
+          </ul>
+          <Button kind="primary" busy={busyKey === 'complete'} disabled={!!busyKey || !readyToClose}
+            title={readyToClose ? undefined : 'Finish the list above first'}
+            onClick={() => post('complete', `/api/runs/${runId}/signoff/complete`, {})}>{busyKey === 'complete' ? 'Closing…' : 'Close sign-off and write results'}</Button>
         </Card>
       )}
       {r.results_ready && <a className="justify-self-start rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink" href={`/api/runs/${runId}/results.xlsx`}>Download results.xlsx</a>}
