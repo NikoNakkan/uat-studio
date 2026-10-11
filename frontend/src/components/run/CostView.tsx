@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { CostItem, RunCost } from '../../api';
-import { usd } from '../../lib/money';
+import { COST_NOTE, usd } from '../../lib/money';
 import { Card, Empty, Tabs } from '../../ui';
 import { STAGES } from './stages';
 
@@ -16,7 +16,7 @@ const label = (view: View, key: string) => view === 'by_stage' ? STAGES[key]?.ti
 /** What this run cost in AI, and where the money went: by stage, by agent or by model. */
 export function CostView({ cost }: { cost: RunCost }) {
   return (
-    <Card title="Cost of this run" actions={<span className="text-2xl font-semibold tnum">{cost.estimated ? 'up to ' : ''}{usd(cost.total)}</span>}>
+    <Card title="Estimated cost of this run" actions={<span className="text-2xl font-semibold tnum" title={COST_NOTE}>{usd(cost.total)}</span>}>
       {cost.calls ? <CostBreakdown cost={cost} /> : <Empty>No AI work recorded for this run yet.</Empty>}
     </Card>
   );
@@ -35,7 +35,11 @@ export function CostBreakdown({ cost }: { cost: RunCost }) {
       </p>
       <Tabs tabs={VIEWS.map(v => ({ id: v.id, label: v.label }))} current={view} onChange={id => setView(id as View)} />
       <ul className="mt-3 grid gap-2">{items.map(i => <Row key={i.key} item={i} name={label(view, i.key)} share={i.cost / top} mono={view !== 'by_stage'} />)}</ul>
-      {cost.estimated && <p className="mt-3 text-xs text-muted">Part of this run was recorded before cached tokens were counted apart, so those calls are priced as if nothing came from the cache. The real cost is lower.</p>}
+      <p className="mt-3 text-xs text-muted">
+        An estimate from the tokens used and list prices, not the bill.
+        {cost.estimated && ' Part of this run was recorded before cached tokens were counted apart, so it reads high: those calls are priced as if nothing came from the cache.'}
+        {' '}The billed amount is in the <a className="text-link hover:underline" href="https://console.anthropic.com/settings/cost" target="_blank" rel="noreferrer">Anthropic Console</a>.
+      </p>
       {cost.unpriced.length > 0 && <p className="mt-1 text-xs text-muted">No price known for {cost.unpriced.join(', ')}; those calls count as $0.</p>}
     </div>
   );

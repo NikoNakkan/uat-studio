@@ -9,7 +9,7 @@ import { FilesView, UsageView } from '../components/run/RunDetails';
 import { stageOutput } from '../components/run/StageOutput';
 import { STAGES, stageMeta, stageState } from '../components/run/stages';
 import { useRun } from '../lib/queries';
-import { usd } from '../lib/money';
+import { COST_NOTE, usd } from '../lib/money';
 import { useAction } from '../lib/useAction';
 import { Button, Loading, Notice, errorText, useTitle } from '../ui';
 
@@ -64,7 +64,7 @@ function RunHeader({ runId, r }: { runId: string; r: RunDetail }) {
           <Link to="/runs" className="text-sm text-link hover:underline">← Test runs</Link>
           <h1 className="font-mono text-lg font-semibold">{r.id}</h1>
           <p className="text-sm text-muted">{prog.excel} · strictness {prog.strictness}{prog.excel_sha256 ? ` · SHA-256 ${prog.excel_sha256.slice(0, 12)}…` : ''}
-            {r.cost.calls > 0 && <> · <span className="font-medium text-ink tnum" title="What the agents of this run cost so far">{r.cost.estimated ? 'up to ' : ''}{usd(r.cost.total)} in AI</span></>}</p>
+            {r.cost.calls > 0 && <> · <span className="font-medium text-ink tnum" title={COST_NOTE}>{usd(r.cost.total)} in AI</span></>}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!r.running && <Button kind="primary" busy={busy === 'start'} disabled={!!busy} onClick={() => act('start', () => api.post(`/api/runs/${runId}/start`))}>

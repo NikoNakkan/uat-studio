@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { RunCard } from '../components/runs/RunCard';
 import { stateOf, when } from '../components/runs/runState';
 import { useEnv, useInteractions, useLoginWritten, useProjects, useRuns, useSettings, useSetupCheck } from '../lib/queries';
-import { usd } from '../lib/money';
+import { COST_NOTE, usd } from '../lib/money';
 import { Card, Empty, QueryGate, useTitle } from '../ui';
 
 /** The project's home: is it ready, what happened last, what needs the person, and a way to start a run. */
@@ -34,7 +34,7 @@ export function HomePage() {
         <Tile label="Last run" value={latest ? `${latest.passed}/${latest.tests}` : '—'} note={latest ? 'tests passed' : 'no run yet'} />
         <Tile label="Waiting for you" value={waiting} tone={waiting ? 'warn' : undefined} to={waiting && latest ? `/runs/${latest.id}` : undefined} />
         <Tile label="Signed off" value={list.filter(r => r.sealed).length} />
-        <Tile label="Spent on AI" value={usd(list.reduce((sum, r) => sum + (r.cost ?? 0), 0))} note={latest ? `last run ${usd(latest.cost)}` : undefined} />
+        <Tile label="Spent on AI (est.)" title={COST_NOTE} value={usd(list.reduce((sum, r) => sum + (r.cost ?? 0), 0))} note={latest ? `last run ${usd(latest.cost)}` : undefined} />
       </div>
 
       <QueryGate pending={runs.isPending} error={runs.isError ? runs.error : null} label="Loading runs…">
@@ -98,9 +98,9 @@ function SetupStatus() {
   );
 }
 
-function Tile({ label, value, note, tone, to }: { label: string; value: number | string; note?: string; tone?: 'warn'; to?: string }) {
+function Tile({ label, value, note, tone, to, title }: { label: string; value: number | string; note?: string; tone?: 'warn'; to?: string; title?: string }) {
   const body = (
-    <div className={`h-full rounded-lg border bg-surface p-4 ${tone === 'warn' ? 'border-warn/60' : 'border-line'} ${to ? 'hover:border-accent' : ''}`}>
+    <div title={title} className={`h-full rounded-lg border bg-surface p-4 ${tone === 'warn' ? 'border-warn/60' : 'border-line'} ${to ? 'hover:border-accent' : ''}`}>
       <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
       <div className={`mt-1 text-2xl font-semibold tnum ${tone === 'warn' ? 'text-warn' : ''}`}>{value}</div>
       {note && <div className="text-xs text-muted">{note}</div>}

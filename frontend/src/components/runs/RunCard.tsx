@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import type { RunSummary } from '../../api';
-import { usd } from '../../lib/money';
+import { COST_NOTE, usd } from '../../lib/money';
 import { useRunCost } from '../../lib/queries';
 import { QueryGate } from '../../ui';
 import { CostBreakdown } from '../run/CostView';
@@ -35,7 +35,7 @@ export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolea
             {r.cases > 0 && <span>· {r.cases} cases</span>}
             {r.strictness && <span>· {r.strictness} questions</span>}
             {r.cost > 0 && <span>· <button type="button" aria-expanded={costOpen} onClick={() => setCostOpen(o => !o)}
-              title={costOpen ? 'Hide the cost breakdown' : 'Show where the money went'}
+              title={`${costOpen ? 'Hide' : 'Show'} where the money went. ${COST_NOTE}`}
               className="rounded px-1 py-0.5 hover:bg-surface-2"><b className="font-medium text-ink tnum">{usd(r.cost)}</b> in AI <span aria-hidden className="text-link">{costOpen ? '▴' : '▾'}</span></button></span>}
           </div>
         </div>
