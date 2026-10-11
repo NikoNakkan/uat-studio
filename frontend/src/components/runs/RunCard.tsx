@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import type { RunSummary } from '../../api';
 import { usd } from '../../lib/money';
+import { useRunCost } from '../../lib/queries';
+import { QueryGate } from '../../ui';
+import { CostBreakdown } from '../run/CostView';
 import { STAGES } from '../run/stages';
 import { RunActions } from '../RunActions';
 import { stateOf, when } from './runState';
@@ -13,6 +17,7 @@ export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolea
   const state = stateOf(r.state);
   const stage = r.current ? STAGES[r.current]?.title ?? r.current : null;
   const notRun = Math.max(0, r.tests - r.passed - r.failed);
+  const [costOpen, setCostOpen] = useState(false);
   return (
     <article className={`relative overflow-hidden rounded-lg border border-line bg-surface ${big ? 'p-5' : 'p-4'}`}>
       <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${state.bar}`} />
@@ -29,11 +34,15 @@ export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolea
             <span className="font-medium text-ink">{r.excel ?? 'Excel not recorded'}</span>
             {r.cases > 0 && <span>· {r.cases} cases</span>}
             {r.strictness && <span>· {r.strictness} questions</span>}
-            {r.cost > 0 && <span title="What the agents of this run cost">· <b className="font-medium text-ink tnum">{usd(r.cost)}</b> in AI</span>}
+            {r.cost > 0 && <span>· <button type="button" aria-expanded={costOpen} onClick={() => setCostOpen(o => !o)}
+              title={costOpen ? 'Hide the cost breakdown' : 'Show where the money went'}
+              className="rounded px-1 py-0.5 hover:bg-surface-2"><b className="font-medium text-ink tnum">{usd(r.cost)}</b> in AI <span aria-hidden className="text-link">{costOpen ? '▴' : '▾'}</span></button></span>}
           </div>
         </div>
         <Results passed={r.passed} failed={r.failed} notRun={notRun} />
       </div>
+
+      {costOpen && <RunCostPanel runId={r.id} />}
 
       <div className="mt-3">
         <div className="mb-1 flex justify-between text-xs text-muted">
@@ -53,6 +62,18 @@ export function RunCard({ run: r, big = false }: { run: RunSummary; big?: boolea
         <span className="ml-auto"><RunActions runId={r.id} running={r.running} sealed={r.sealed} size="small" /></span>
       </div>
     </article>
+  );
+}
+
+/** The cost breakdown inside the card, loaded when it is opened. */
+function RunCostPanel({ runId }: { runId: string }) {
+  const cost = useRunCost(runId, true);
+  return (
+    <div className="mt-3 rounded-md border border-line bg-surface-2/40 p-3">
+      <QueryGate pending={cost.isPending} error={cost.isError ? cost.error : null} label="Loading the cost…">
+        {cost.data && <CostBreakdown cost={cost.data} />}
+      </QueryGate>
+    </div>
   );
 }
 

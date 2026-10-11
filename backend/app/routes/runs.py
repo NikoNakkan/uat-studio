@@ -106,6 +106,12 @@ async def create_run(file: UploadFile | None = File(None), strictness: str = For
     return {"id": run_id, "started": start}
 
 
+@router.get("/runs/{run_id}/cost")
+def run_cost(run_id: str):
+    """What the run's agents cost, by stage, agent and model: the run list opens it without loading the whole run."""
+    return costs.summarise(kit.read_json(run_or_404(run_id) / "usage.json", []) or [])
+
+
 @router.get("/runs/{run_id}")
 def get_run(run_id: str):
     p = run_or_404(run_id)

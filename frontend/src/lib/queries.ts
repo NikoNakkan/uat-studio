@@ -1,6 +1,6 @@
 // The data the app shares between pages, each defined once: one query key, one type, one refresh rate.
 import { useQuery } from '@tanstack/react-query';
-import { api, type EnvInfo, type Health, type Interaction, type Projects, type RunDetail, type RunSummary, type SetupCheck, type Settings } from '../api';
+import { api, type EnvInfo, type Health, type Interaction, type Projects, type RunCost, type RunDetail, type RunSummary, type SetupCheck, type Settings } from '../api';
 
 /** tests/login.ts still holds this sentence until the login agent (or a person) has written it. */
 const LOGIN_TEMPLATE = 'write login() for your app';
@@ -15,6 +15,9 @@ export const useProjects = () => useQuery({ queryKey: ['projects'], queryFn: () 
 export const useRuns = () => useQuery({ queryKey: ['runs'], queryFn: () => api.get<RunSummary[]>('/api/runs'), refetchInterval: 4000 });
 export const useRun = (runId: string) =>
   useQuery({ queryKey: ['run', runId], queryFn: () => api.get<RunDetail>(`/api/runs/${runId}`), refetchInterval: 5000 });
+/** A run's cost breakdown, fetched only once someone opens it. */
+export const useRunCost = (runId: string, enabled: boolean) =>
+  useQuery({ queryKey: ['runcost', runId], queryFn: () => api.get<RunCost>(`/api/runs/${runId}/cost`), enabled, refetchInterval: 10_000 });
 
 /** A text file of the current project's kit (test code, login.ts); nothing is fetched until a path is given. */
 export const useKitText = (path: string | null, refetchInterval?: number) => useQuery({

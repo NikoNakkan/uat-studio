@@ -15,22 +15,29 @@ const label = (view: View, key: string) => view === 'by_stage' ? STAGES[key]?.ti
 
 /** What this run cost in AI, and where the money went: by stage, by agent or by model. */
 export function CostView({ cost }: { cost: RunCost }) {
+  return (
+    <Card title="Cost of this run" actions={<span className="text-2xl font-semibold tnum">{cost.estimated ? 'up to ' : ''}{usd(cost.total)}</span>}>
+      {cost.calls ? <CostBreakdown cost={cost} /> : <Empty>No AI work recorded for this run yet.</Empty>}
+    </Card>
+  );
+}
+
+/** The calls and tokens, then one bar per stage, agent or model; shared by the run page and the run cards. */
+export function CostBreakdown({ cost }: { cost: RunCost }) {
   const [view, setView] = useState<View>('by_stage');
   const items = cost[view];
   const top = Math.max(...items.map(i => i.cost), 0.0001);
   return (
-    <Card title="Cost of this run" actions={<span className="text-2xl font-semibold tnum">{cost.estimated ? 'up to ' : ''}{usd(cost.total)}</span>}>
-      {cost.calls ? <>
-        <p className="mb-3 text-sm text-muted">
-          {cost.calls} agent call{cost.calls === 1 ? '' : 's'} · {cost.tokens.input.toLocaleString()} input and {cost.tokens.output.toLocaleString()} output tokens
-          {cost.tokens.cache_read > 0 && ` · ${cost.tokens.cache_read.toLocaleString()} read from the cache at a tenth of the price`}
-        </p>
-        <Tabs tabs={VIEWS.map(v => ({ id: v.id, label: v.label }))} current={view} onChange={id => setView(id as View)} />
-        <ul className="mt-3 grid gap-2">{items.map(i => <Row key={i.key} item={i} name={label(view, i.key)} share={i.cost / top} mono={view !== 'by_stage'} />)}</ul>
-        {cost.estimated && <p className="mt-3 text-xs text-muted">Part of this run was recorded before cached tokens were counted apart, so those calls are priced as if nothing came from the cache. The real cost is lower.</p>}
-        {cost.unpriced.length > 0 && <p className="mt-1 text-xs text-muted">No price known for {cost.unpriced.join(', ')}; those calls count as $0.</p>}
-      </> : <Empty>No AI work recorded for this run yet.</Empty>}
-    </Card>
+    <div>
+      <p className="mb-3 text-sm text-muted">
+        {cost.calls} agent call{cost.calls === 1 ? '' : 's'} · {cost.tokens.input.toLocaleString()} input and {cost.tokens.output.toLocaleString()} output tokens
+        {cost.tokens.cache_read > 0 && ` · ${cost.tokens.cache_read.toLocaleString()} read from the cache at a tenth of the price`}
+      </p>
+      <Tabs tabs={VIEWS.map(v => ({ id: v.id, label: v.label }))} current={view} onChange={id => setView(id as View)} />
+      <ul className="mt-3 grid gap-2">{items.map(i => <Row key={i.key} item={i} name={label(view, i.key)} share={i.cost / top} mono={view !== 'by_stage'} />)}</ul>
+      {cost.estimated && <p className="mt-3 text-xs text-muted">Part of this run was recorded before cached tokens were counted apart, so those calls are priced as if nothing came from the cache. The real cost is lower.</p>}
+      {cost.unpriced.length > 0 && <p className="mt-1 text-xs text-muted">No price known for {cost.unpriced.join(', ')}; those calls count as $0.</p>}
+    </div>
   );
 }
 

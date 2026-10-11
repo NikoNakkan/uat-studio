@@ -49,3 +49,5 @@ def test_run_summary_and_detail_carry_the_cost(client, kit_dir):
     listed = next(r for r in client.get("/api/runs").json() if r["id"] == "2026-01-01-0000")
     assert listed["cost"] == approx(1.0)
     assert client.get("/api/runs/2026-01-01-0000").json()["cost"]["by_agent"][0]["key"] == "uat-clarifier"
+    assert client.get("/api/runs/2026-01-01-0000/cost").json()["by_stage"][0]["key"] == "clarify"
+    assert client.get("/api/runs/no-such-run/cost").status_code == 404
