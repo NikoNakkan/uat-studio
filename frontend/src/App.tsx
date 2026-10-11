@@ -10,13 +10,34 @@ import { SwitchesPage } from './pages/Switches';
 import { KnowledgePage } from './pages/Knowledge';
 import { SettingsPage } from './pages/Settings';
 
-const NAV = [
-  { to: '/setup', label: '1  Set up' },
-  { to: '/', label: '2  Test runs', end: true },
-  { to: '/switches', label: 'Feature switches' },
-  { to: '/knowledge', label: 'Knowledge' },
-  { to: '/settings', label: 'Settings' },
+// Small line icons (24px grid, drawn with currentColor) so each page is recognisable at a glance.
+const ICONS: Record<string, string> = {
+  setup: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z',
+  runs: 'M8 5v14l11-7z',
+  knowledge: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zm0 0v14m6-12v14',
+  switches: 'M4 8h10m4 0h2M4 16h2m4 0h10M14 6v4m-4 4v4',
+  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.5 7.5 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.5 7.5 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z',
+};
+
+const NAV_GROUPS: { label?: string; items: { to: string; label: string; icon: string; end?: boolean }[] }[] = [
+  { label: 'Testing', items: [
+    { to: '/setup', label: 'Set up', icon: 'setup' },
+    { to: '/', label: 'Test runs', icon: 'runs', end: true },
+  ] },
+  { label: 'This project', items: [
+    { to: '/knowledge', label: 'Knowledge', icon: 'knowledge' },
+    { to: '/switches', label: 'Feature switches', icon: 'switches' },
+  ] },
+  { items: [{ to: '/settings', label: 'Settings', icon: 'settings' }] },
 ];
+
+function NavIcon({ name }: { name: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d={ICONS[name]} />
+    </svg>
+  );
+}
 
 export function App() {
   const health = useQuery({ queryKey: ['health'], queryFn: () => api.get<any>('/api/health'), refetchInterval: 5000 });
@@ -36,12 +57,18 @@ export function App() {
             <div className="text-xs text-muted leading-tight">Excel in · evidence out</div></div>
         </div>
         <ProjectSwitcher />
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4" aria-label="Pages">
-          {NAV.map(n => (
-            <NavLink key={n.to} to={n.to} end={n.end}
-              className={({ isActive }) => `whitespace-nowrap rounded-md px-3 py-2 text-sm ${isActive ? 'bg-accent-soft font-medium text-ink' : 'text-muted hover:text-ink hover:bg-surface-2'}`}>
-              {n.label}
-            </NavLink>
+        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:gap-3 md:pb-4" aria-label="Pages">
+          {NAV_GROUPS.map((g, gi) => (
+            <div key={gi} className={`flex gap-1 md:flex-col ${!g.label ? 'md:mt-auto md:border-t md:border-line md:pt-3' : ''}`}>
+              {g.label && <div className="hidden px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted md:block">{g.label}</div>}
+              {g.items.map(n => (
+                <NavLink key={n.to} to={n.to} end={n.end}
+                  className={({ isActive }) => `flex items-center gap-2.5 whitespace-nowrap rounded-md px-3 py-2 text-sm ${isActive ? 'bg-accent-soft font-medium text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink'}`}>
+                  <NavIcon name={n.icon} />
+                  {n.label}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-3 text-xs md:grid md:gap-2 md:pb-4">
