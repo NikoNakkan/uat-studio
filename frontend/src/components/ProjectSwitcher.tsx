@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { Button, Field, errorText, inputCls } from '../ui';
@@ -26,17 +27,37 @@ export function ProjectSwitcher() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<{ top: number; left: number; width: number } | null>(null);
   const current = q.data?.projects.find(p => p.current);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => { if (e.key === BROADCAST) window.location.reload(); };
-    const onDown = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!box.current?.contains(target) && !panel.current?.contains(target)) setOpen(false);
+    };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     window.addEventListener('storage', onStorage);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('storage', onStorage); document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, []);
+
+  // The sidebar clips anything wider than itself, so the panel is drawn on <body>, anchored under the button.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const r = box.current?.getBoundingClientRect();
+      if (!r) return;
+      const width = Math.min(Math.max(r.width - 16, 320), window.innerWidth - 16);
+      setPlace({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left + 8, window.innerWidth - width - 8)), width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => { window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
+  }, [open]);
 
   const act = async (what: string, fn: () => Promise<void>) => {
     setBusy(what); setMsg('');
@@ -56,8 +77,9 @@ export function ProjectSwitcher() {
         <span aria-hidden className="text-muted">▾</span>
       </button>
 
-      {open && (
-        <div role="dialog" aria-label="Projects" className="absolute left-2 right-2 top-full z-40 mt-1 grid gap-2 rounded-lg border border-line bg-surface p-2 shadow-lg md:right-auto md:w-80">
+      {open && place && createPortal(
+        <div ref={panel} role="dialog" aria-label="Projects" style={{ top: place.top, left: place.left, width: place.width }}
+          className="fixed z-50 grid max-h-[calc(100vh-6rem)] gap-2 overflow-y-auto rounded-lg border border-line bg-surface p-2 shadow-lg">
           {mode === 'list' && <>
             <ul className="grid max-h-72 gap-0.5 overflow-y-auto">
               {(q.data?.projects ?? []).map(p => (
@@ -115,7 +137,8 @@ export function ProjectSwitcher() {
             </form>
           )}
           {msg && <p role="status" className="px-1 text-xs text-muted">{msg}</p>}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
